@@ -498,7 +498,7 @@ export default function BuyerMode({
               }}
               className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/50 hover:bg-emerald-100 text-[11px] font-extrabold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
-              <Crosshair className="w-3.5 h-3.5 text-emerald-500 animate-spin" />
+              <Crosshair className="w-3.5 h-3.5 text-emerald-500" />
               Gunakan Lokasi GPS Perangkat Saya
             </button>
 
@@ -564,40 +564,99 @@ export default function BuyerMode({
             </div>
           </div>
 
-          {/* RIDE CONFIRMATION STEP & ORDER BUTTON (DI PALING BAWAH) */}
-          {showRideConfirm ? (
-            <div className="p-4 bg-amber-50 dark:bg-amber-950/60 rounded-2xl border border-amber-300 dark:border-amber-800 text-center space-y-3">
-              <AlertCircle className="w-7 h-7 text-amber-500 mx-auto" />
-              <p className="font-bold text-xs text-zinc-800 dark:text-zinc-200">
-                Konfirmasi Pemesanan Ojek dari <span className="text-emerald-600 font-black">{pickupSpot.name}</span> ke <span className="text-rose-500 font-black">{destSpot.name}</span> seharga <span className="font-black text-emerald-600">Rp {calcFare.toLocaleString('id-ID')}</span>?
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRideConfirm(false)}
-                  disabled={isSubmittingRide}
-                  className="flex-1 py-3 text-xs font-bold rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFinalRideSubmit}
-                  disabled={isSubmittingRide}
-                  className="flex-1 py-3 text-xs font-black rounded-xl bg-emerald-600 text-white shadow-md cursor-pointer"
-                >
-                  {isSubmittingRide ? 'Memproses...' : 'Ya, Pesan Ojek'}
-                </button>
+          {/* RIDE ORDER BUTTON */}
+          <button
+            onClick={() => setShowRideConfirm(true)}
+            className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm sm:text-base py-3.5 sm:py-4 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer btn-ripple"
+          >
+            <Bike className="w-5 h-5" />
+            Pesan Ojek Sekarang (Rp {calcFare.toLocaleString('id-ID')})
+          </button>
+
+          {/* RIDE CONFIRMATION MODAL POPUP */}
+          {showRideConfirm && (
+            <div className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-white dark:bg-zinc-900 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-zinc-200 dark:border-zinc-800 relative">
+                <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center text-lg font-bold">
+                      🛵
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-base text-zinc-900 dark:text-white">Konfirmasi Pemesanan Ojek</h3>
+                      <span className="text-[10px] text-zinc-500 font-medium">Layanan Ojek Maleber Express</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowRideConfirm(false)}
+                    className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-bold flex items-center justify-center cursor-pointer hover:bg-zinc-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Address Details */}
+                <div className="bg-zinc-50 dark:bg-zinc-800/60 p-4 rounded-2xl space-y-3 text-xs border border-zinc-200/60 dark:border-zinc-700/60">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                      A
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold text-emerald-600 uppercase">Titik Penjemputan</span>
+                      <p className="font-bold text-zinc-900 dark:text-white mt-0.5">{pickupSpot.name}</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-dashed border-zinc-200 dark:border-zinc-700 pt-2.5 flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                      B
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold text-rose-600 uppercase">Titik Tujuan</span>
+                      <p className="font-bold text-zinc-900 dark:text-white mt-0.5">{destSpot.name}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price Breakdown */}
+                <div className="bg-emerald-50 dark:bg-emerald-950/50 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-2 text-xs">
+                  <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                    <span>Estimasi Jarak Tempuh</span>
+                    <span className="font-bold tabular-nums">{calcDistance} km</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                    <span>Metode Pembayaran</span>
+                    <span className="font-bold text-emerald-700 dark:text-emerald-300">💵 Tunai / COD</span>
+                  </div>
+                  <div className="flex justify-between text-base font-black text-emerald-800 dark:text-emerald-300 pt-2 border-t border-emerald-200 dark:border-emerald-800">
+                    <span>Total Tarif Ojek</span>
+                    <span className="tabular-nums">Rp {calcFare.toLocaleString('id-ID')}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowRideConfirm(false)}
+                    disabled={isSubmittingRide}
+                    className="flex-1 py-3 text-xs font-bold rounded-2xl text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 cursor-pointer"
+                  >
+                    Cek Kembali
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFinalRideSubmit}
+                    disabled={isSubmittingRide}
+                    className="flex-1 py-3 text-xs font-black rounded-2xl text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/30 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {isSubmittingRide ? 'Memproses...' : 'Ya, Pesan Ojek'}
+                    <CheckCircle2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          ) : (
-            <button
-              onClick={() => setShowRideConfirm(true)}
-              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm sm:text-base py-3.5 sm:py-4 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer btn-ripple"
-            >
-              <Bike className="w-5 h-5" />
-              Pesan Ojek Sekarang (Rp {calcFare.toLocaleString('id-ID')})
-            </button>
           )}
 
         </div>
@@ -616,8 +675,16 @@ export default function BuyerMode({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Food Orders History */}
-              {orders.map((ord) => {
+              {/* Food Orders History — Active/Ongoing Sorted at the TOP */}
+              {[...orders]
+                .sort((a, b) => {
+                  const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
+                  const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
+                  if (isAActive && !isBActive) return -1;
+                  if (!isAActive && isBActive) return 1;
+                  return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+                })
+                .map((ord) => {
                 const isCancelled = ord.status === 'cancelled';
                 const isCompleted = ord.status === 'completed';
                 return (
@@ -719,8 +786,16 @@ export default function BuyerMode({
                 );
               })}
 
-              {/* Ride Requests History */}
-              {rides.map((rd) => {
+              {/* Ride Requests History — Active/Ongoing Sorted at the TOP */}
+              {[...rides]
+                .sort((a, b) => {
+                  const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
+                  const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
+                  if (isAActive && !isBActive) return -1;
+                  if (!isAActive && isBActive) return 1;
+                  return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+                })
+                .map((rd) => {
                 const isCancelled = rd.status === 'cancelled';
                 const isCompleted = rd.status === 'completed';
                 return (

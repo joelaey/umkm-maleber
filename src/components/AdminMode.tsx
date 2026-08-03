@@ -294,27 +294,43 @@ export default function AdminMode({
             {/* Live Activity Stream Feed */}
             <div className="lg:col-span-4 bg-white dark:bg-zinc-900 p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 h-[360px] sm:h-[510px] overflow-y-auto">
               <h4 className="font-extrabold text-xs sm:text-sm text-zinc-900 dark:text-white flex items-center gap-2 pb-2 border-b border-zinc-100 dark:border-zinc-800">
-                <Activity className="w-4 h-4 text-amber-500 animate-spin shrink-0" />
+                <Activity className="w-4 h-4 text-amber-500 shrink-0" />
                 Stream Aktivitas Desa Live
               </h4>
 
               <div className="space-y-2.5 sm:space-y-3 stagger-children">
-                {rides.map((r) => (
-                  <div key={r.id} className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-black px-2 py-0.5 rounded-md text-[10px]">
-                        🛵 OJEK PENUMPANG
-                      </span>
-                      <span className="text-zinc-400 text-[10px]">Baru Saja</span>
+                {[...rides]
+                  .sort((a, b) => {
+                    const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
+                    const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
+                    if (isAActive && !isBActive) return -1;
+                    if (!isAActive && isBActive) return 1;
+                    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+                  })
+                  .map((r) => (
+                    <div key={r.id} className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-black px-2 py-0.5 rounded-md text-[10px]">
+                          🛵 OJEK PENUMPANG
+                        </span>
+                        <span className="text-zinc-400 text-[10px]">Baru Saja</span>
+                      </div>
+                      <p className="font-bold text-zinc-900 dark:text-white mt-1 leading-snug">
+                        {r.passengerName} memesan ojek ke {r.destAddress}
+                      </p>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold block text-[11px]">Tarif: Rp {r.fare.toLocaleString('id-ID')}</span>
                     </div>
-                    <p className="font-bold text-zinc-900 dark:text-white mt-1 leading-snug">
-                      {r.passengerName} memesan ojek ke {r.destAddress}
-                    </p>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold block text-[11px]">Tarif: Rp {r.fare.toLocaleString('id-ID')}</span>
-                  </div>
-                ))}
+                  ))}
 
-                {orders.map((o) => (
+                {[...orders]
+                  .sort((a, b) => {
+                    const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
+                    const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
+                    if (isAActive && !isBActive) return -1;
+                    if (!isAActive && isBActive) return 1;
+                    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+                  })
+                  .map((o) => (
                   <div key={o.id} className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs">
                     <div className="flex justify-between items-center">
                       <span className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-black px-2 py-0.5 rounded-md text-[10px]">

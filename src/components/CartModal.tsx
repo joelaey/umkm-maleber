@@ -71,30 +71,70 @@ export default function CartModal({
             <p className="text-xs text-zinc-400">Pilih makanan atau produk UMKM dari katalog Desa Maleber</p>
           </div>
         ) : showConfirm ? (
-          /* DOUBLE ORDER PREVENTION CONFIRMATION SCREEN */
-          <div className="py-6 space-y-5 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-950 text-amber-600 flex items-center justify-center mx-auto shadow-md">
-              <AlertCircle className="w-7 h-7" />
-            </div>
-            
-            <div className="space-y-1">
-              <h4 className="text-lg font-black text-zinc-900 dark:text-white">Konfirmasi Pemesanan Makanan</h4>
-              <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                Apakah Anda yakin ingin memproses pesanan ini dengan total biaya <span className="font-extrabold text-emerald-600">Rp {total.toLocaleString('id-ID')}</span>?
-              </p>
+          /* POPUP CONFIRMATION SCREEN WITH FULL ITEMIZED DETAILS */
+          <div className="py-2 space-y-4">
+            <div className="text-center space-y-1">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center mx-auto shadow-md text-xl">
+                🍲
+              </div>
+              <h4 className="text-lg font-black text-zinc-900 dark:text-white">Konfirmasi Pemesanan Kuliner</h4>
+              <p className="text-xs text-zinc-500">Periksa kembali rincian pesanan Anda sebelum dikirim</p>
             </div>
 
-            <div className="bg-zinc-50 dark:bg-zinc-800/60 p-3.5 rounded-2xl text-xs space-y-1 text-left">
-              <p className="font-bold text-zinc-700 dark:text-zinc-300">Tujuan: {address}</p>
-              <p className="text-zinc-500">Jumlah item: {cart.reduce((a, c) => a + c.quantity, 0)} produk</p>
+            {/* Address & Store Info */}
+            <div className="bg-zinc-50 dark:bg-zinc-800/60 p-3.5 rounded-2xl text-xs space-y-2 border border-zinc-200/60 dark:border-zinc-700/60">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-[10px] font-extrabold text-emerald-600 uppercase">Alamat Tujuan Pengantaran</span>
+                  <p className="font-bold text-zinc-900 dark:text-white mt-0.5">{address}</p>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            {/* Itemized Products Breakdown */}
+            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+              <span className="text-[11px] font-bold text-zinc-500">Rincian Item ({cart.reduce((a, c) => a + c.quantity, 0)} produk):</span>
+              {cart.map((item) => (
+                <div key={item.product.id} className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/40 p-2.5 rounded-xl text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-emerald-600">{item.quantity}x</span>
+                    <span className="font-bold text-zinc-900 dark:text-white line-clamp-1">{item.product.name}</span>
+                  </div>
+                  <span className="font-extrabold text-zinc-700 dark:text-zinc-300 tabular-nums">
+                    Rp {(item.product.price * item.quantity).toLocaleString('id-ID')}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Pricing Breakdown */}
+            <div className="bg-emerald-50 dark:bg-emerald-950/50 p-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-1.5 text-xs">
+              <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                <span>Subtotal Makanan</span>
+                <span className="font-bold tabular-nums">Rp {subtotal.toLocaleString('id-ID')}</span>
+              </div>
+              <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                <span>Ongkir Kurir Desa</span>
+                <span className="font-bold tabular-nums">Rp {deliveryFee.toLocaleString('id-ID')}</span>
+              </div>
+              <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                <span>Metode Pembayaran</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-300">💵 Tunai / COD</span>
+              </div>
+              <div className="flex justify-between text-base font-black text-emerald-800 dark:text-emerald-300 pt-2 border-t border-emerald-200 dark:border-emerald-800">
+                <span>Total Biaya</span>
+                <span className="tabular-nums">Rp {total.toLocaleString('id-ID')}</span>
+              </div>
+            </div>
+
+            {/* Confirmation Buttons */}
+            <div className="flex items-center gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setShowConfirm(false)}
                 disabled={isSubmitting}
-                className="flex-1 py-3 text-xs font-bold rounded-2xl text-zinc-600 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 cursor-pointer"
+                className="flex-1 py-3 text-xs font-bold rounded-2xl text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 cursor-pointer"
               >
                 Cek Kembali
               </button>

@@ -236,7 +236,15 @@ export default function SellerMode({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {storeOrders.map((ord) => (
+              {[...storeOrders]
+                .sort((a, b) => {
+                  const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
+                  const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
+                  if (isAActive && !isBActive) return -1;
+                  if (!isAActive && isBActive) return 1;
+                  return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+                })
+                .map((ord) => (
                 <div
                   key={ord.id}
                   className="bg-white dark:bg-zinc-900 p-5 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4"

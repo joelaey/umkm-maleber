@@ -365,7 +365,7 @@ export default function DriverMode({
         
         <div className="lg:col-span-6 space-y-4">
           <h3 className="font-extrabold text-lg text-zinc-900 dark:text-white flex items-center gap-2">
-            <Navigation className="w-5 h-5 text-blue-600 animate-spin" />
+            <Navigation className="w-5 h-5 text-blue-600 shrink-0" />
             Radar Tawaran Orderan Desa Maleber
           </h3>
 
