@@ -409,31 +409,33 @@ export default function ProfileModal({
               </button>
             </div>
 
-            {/* Dompet Virtual Driver & Mitraseat System Readiness Card */}
-            <div className="p-3.5 bg-gradient-to-r from-emerald-950/80 to-teal-950/80 border border-emerald-500/30 rounded-2xl text-xs text-white space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Wallet className="w-4 h-4 text-emerald-400" />
-                  <span className="font-extrabold text-emerald-300">Saldo Dompet Mitraseat Driver</span>
+            {/* Dompet Virtual Driver System Readiness Card (ONLY FOR DRIVERS) */}
+            {user.role === 'driver' && (
+              <div className="p-3.5 bg-gradient-to-r from-emerald-950/80 to-teal-950/80 border border-emerald-500/30 rounded-2xl text-xs text-white space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-emerald-400" />
+                    <span className="font-extrabold text-emerald-300">Saldo Dompet Mitraseat Driver</span>
+                  </div>
+                  <span className="bg-emerald-500/20 text-emerald-300 font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    Sistem Siap
+                  </span>
                 </div>
-                <span className="bg-emerald-500/20 text-emerald-300 font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  Sistem Siap
-                </span>
-              </div>
-              <div className="flex justify-between items-baseline pt-1">
-                <div>
-                  <span className="text-[10px] text-zinc-400 block">Saldo Dompet Virtual:</span>
-                  <span className="text-lg font-black text-white tabular-nums">Rp 50.000</span>
+                <div className="flex justify-between items-baseline pt-1">
+                  <div>
+                    <span className="text-[10px] text-zinc-400 block">Saldo Dompet Virtual:</span>
+                    <span className="text-lg font-black text-white tabular-nums">Rp 50.000</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => alert('Sistem Dompet Virtual Driver Siap! Integrasi Midtrans Payment Gateway Top-Up akan dihubungkan.')}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] px-3 py-1.5 rounded-xl cursor-pointer shadow-md transition-all"
+                  >
+                    + Top-Up Saldo
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => alert('Sistem Dompet Virtual Driver Siap! Integrasi Midtrans Payment Gateway Top-Up akan dihubungkan.')}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] px-3 py-1.5 rounded-xl cursor-pointer shadow-md transition-all"
-                >
-                  + Top-Up Saldo
-                </button>
               </div>
-            </div>
+            )}
 
             {/* Account Security Verification Badges */}
             <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-xs">

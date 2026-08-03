@@ -675,15 +675,9 @@ export default function BuyerMode({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Food Orders History — Active/Ongoing Sorted at the TOP */}
+              {/* Food Orders History — Latest Order First */}
               {[...orders]
-                .sort((a, b) => {
-                  const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
-                  const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
-                  if (isAActive && !isBActive) return -1;
-                  if (!isAActive && isBActive) return 1;
-                  return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-                })
+                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                 .map((ord) => {
                 const isCancelled = ord.status === 'cancelled';
                 const isCompleted = ord.status === 'completed';
@@ -786,15 +780,9 @@ export default function BuyerMode({
                 );
               })}
 
-              {/* Ride Requests History — Active/Ongoing Sorted at the TOP */}
+              {/* Ride Requests History — Latest Order First */}
               {[...rides]
-                .sort((a, b) => {
-                  const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
-                  const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
-                  if (isAActive && !isBActive) return -1;
-                  if (!isAActive && isBActive) return 1;
-                  return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-                })
+                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                 .map((rd) => {
                 const isCancelled = rd.status === 'cancelled';
                 const isCompleted = rd.status === 'completed';

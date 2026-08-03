@@ -300,13 +300,7 @@ export default function AdminMode({
 
               <div className="space-y-2.5 sm:space-y-3 stagger-children">
                 {[...rides]
-                  .sort((a, b) => {
-                    const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
-                    const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
-                    if (isAActive && !isBActive) return -1;
-                    if (!isAActive && isBActive) return 1;
-                    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-                  })
+                  .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                   .map((r) => (
                     <div key={r.id} className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs">
                       <div className="flex justify-between items-center">
@@ -323,13 +317,7 @@ export default function AdminMode({
                   ))}
 
                 {[...orders]
-                  .sort((a, b) => {
-                    const isAActive = a.status !== 'completed' && a.status !== 'cancelled';
-                    const isBActive = b.status !== 'completed' && b.status !== 'cancelled';
-                    if (isAActive && !isBActive) return -1;
-                    if (!isAActive && isBActive) return 1;
-                    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-                  })
+                  .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                   .map((o) => (
                   <div key={o.id} className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs">
                     <div className="flex justify-between items-center">
