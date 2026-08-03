@@ -474,8 +474,34 @@ export default function BuyerMode({
 
           </div>
 
-          {/* Mode Toggle Button */}
-          <div className="flex justify-end">
+          {/* Mode Toggle & Device GPS Button */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+                  alert('Browser perangkat Anda tidak mendukung fitur GPS.');
+                  return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    setPickupSpot({
+                      name: `📍 Lokasi GPS Saya (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
+                      lat: latitude,
+                      lng: longitude
+                    });
+                  },
+                  (err) => alert('Gagal mengakses GPS: ' + err.message + '. Silakan izinkan akses lokasi pada pop-up browser Anda.'),
+                  { enableHighAccuracy: true }
+                );
+              }}
+              className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/50 hover:bg-emerald-100 text-[11px] font-extrabold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Crosshair className="w-3.5 h-3.5 text-emerald-500 animate-spin" />
+              Gunakan Lokasi GPS Perangkat Saya
+            </button>
+
             <button
               type="button"
               onClick={() => setIsManualLocation(!isManualLocation)}

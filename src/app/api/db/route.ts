@@ -370,6 +370,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: res.rows[0] });
     }
 
+    if (action === 'update_driver_location') {
+      const { driverId, lat, lng, isOnline } = data;
+      const validDriverId = parseUuidOrNull(driverId) || driverId;
+
+      if (validDriverId) {
+        await queryDb(
+          `UPDATE public.driver_locations SET lat = $1, lng = $2, is_online = COALESCE($3, is_online), updated_at = NOW() WHERE id = $4`,
+          [lat, lng, isOnline, validDriverId]
+        ).catch(() => {});
+      }
+      return NextResponse.json({ success: true });
+    }
+
     return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
   } catch (error: any) {
     console.error('API POST /api/db error:', error);

@@ -38,6 +38,90 @@ export default function DriverMode({
   onUpdateOrderStatus,
   onOpenChat
 }: DriverModeProps) {
+  const [gpsActive, setGpsActive] = React.useState(false);
+  const [gpsError, setGpsError] = React.useState<string | null>(null);
+  const [currentCoords, setCurrentCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+
+  // HTML5 Real-Time Browser Geolocation Tracking
+  React.useEffect(() => {
+    if (!driver.isOnline || typeof window === 'undefined' || !('geolocation' in navigator)) {
+      setGpsActive(false);
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setCurrentCoords({ lat: latitude, lng: longitude });
+        setGpsActive(true);
+        setGpsError(null);
+
+        fetch('/api/db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_driver_location',
+            data: {
+              driverId: driver.id,
+              lat: latitude,
+              lng: longitude,
+              isOnline: true
+            }
+          })
+        }).catch((err) => console.warn('Failed to push live GPS:', err));
+      },
+      (err) => {
+        console.warn('Geolocation error:', err.message);
+        setGpsError('Izin akses GPS belum diberikan di browser Anda.');
+        setGpsActive(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 3000
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [driver.isOnline, driver.id]);
+
+  const requestGpsPermission = () => {
+    if (!('geolocation' in navigator)) {
+      alert('Browser perangkat Anda tidak mendukung GPS HTML5.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setCurrentCoords({ lat: latitude, lng: longitude });
+        setGpsActive(true);
+        setGpsError(null);
+
+        fetch('/api/db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_driver_location',
+            data: {
+              driverId: driver.id,
+              lat: latitude,
+              lng: longitude,
+              isOnline: true
+            }
+          })
+        });
+      },
+      (err) => {
+        alert('Gagal mengambil lokasi GPS: ' + err.message + '. Silakan izinkan akses lokasi di browser Anda.');
+        setGpsError(err.message);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
   // Active jobs for this driver
   const activeRide = rides.find(
     (r) => r.driverId === driver.id && r.status !== 'completed' && r.status !== 'cancelled'
@@ -80,13 +164,33 @@ export default function DriverMode({
                 {driver.vehicleModel} &bull; {driver.vehicleNumber}
               </span>
             </div>
-            <p className="text-xs text-zinc-500 mt-0.5">Rating Driver: ⭐ {driver.rating} ({driver.reviewCount} ulasan) &bull; Mitra Ojek &amp; Kurir Maleber</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <p className="text-xs text-zinc-500">⭐ {driver.rating} ({driver.reviewCount} ulasan)</p>
+              {gpsActive ? (
+                <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  GPS Live Aktif: {currentCoords?.lat.toFixed(4)}, {currentCoords?.lng.toFixed(4)}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={requestGpsPermission}
+                  className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full hover:bg-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <MapPin className="w-3 h-3 text-amber-600" />
+                  Aktifkan Live GPS Perangkat
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Online / Offline Switch Button */}
         <button
-          onClick={() => onToggleOnline(driver.id)}
+          onClick={() => {
+            onToggleOnline(driver.id);
+            if (!driver.isOnline) requestGpsPermission();
+          }}
           className={`flex items-center gap-2.5 px-6 py-3 rounded-2xl font-black text-xs transition-all cursor-pointer shadow-md ${
             driver.isOnline
               ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
