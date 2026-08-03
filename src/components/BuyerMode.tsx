@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Store, Product, DriverInfo, Order, RideRequest, UserRole, SavedAddress, PlacePOI } from '@/types';
 import MapComponent from './MapComponent';
 import { MALEBER_CENTER, INITIAL_PLACES } from '@/lib/mockData';
@@ -77,10 +77,36 @@ export default function BuyerMode({
   const [isSubmittingRide, setIsSubmittingRide] = useState(false);
   const [mapSelectionMode, setMapSelectionMode] = useState<'pickup' | 'dest' | null>(null);
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
+  const [isLocatingGPSDest, setIsLocatingGPSDest] = useState(false);
+  const [pickupGeoAddress, setPickupGeoAddress] = useState<string | null>(null);
+  const [destGeoAddress, setDestGeoAddress] = useState<string | null>(null);
 
   // Rating & Cancel Modal State
   const [ratingTarget, setRatingTarget] = useState<{ id: string; name: string; type: 'store' | 'driver' | 'product' } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ id: string; type: 'order' | 'ride'; title: string } | null>(null);
+
+  // --- Reverse Geocoding via OpenStreetMap Nominatim ---
+  const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<string | null> => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=id`,
+        { headers: { 'Accept-Language': 'id' } }
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      // Build a human-readable address from Nominatim response
+      const addr = data.address || {};
+      const parts = [
+        addr.road || addr.pedestrian || addr.footway || addr.path,
+        addr.village || addr.suburb || addr.neighbourhood,
+        addr.city_district || addr.district || addr.county,
+        addr.city || addr.town || addr.municipality
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(', ') : (data.display_name?.split(',').slice(0, 3).join(',') ?? null);
+    } catch {
+      return null;
+    }
+  }, []);
 
   const handleGetCurrentLocation = () => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
@@ -89,18 +115,47 @@ export default function BuyerMode({
     }
     setIsLocatingGPS(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude } = pos.coords;
+        const geoAddr = await reverseGeocode(latitude, longitude);
         setPickupSpot({
-          name: `📍 Lokasi Saya (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
+          name: geoAddr ? `📍 ${geoAddr}` : `📍 Lokasi Saya (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
           lat: latitude,
           lng: longitude
         });
+        setPickupGeoAddress(geoAddr);
         setIsLocatingGPS(false);
       },
       (err) => {
         console.error(err);
         setIsLocatingGPS(false);
+        alert('Gagal mengambil lokasi GPS. Mohon pastikan izin lokasi di HP/Browser diizinkan.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleGetCurrentLocationDest = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('Browser Anda tidak mendukung fitur lokasi GPS.');
+      return;
+    }
+    setIsLocatingGPSDest(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const geoAddr = await reverseGeocode(latitude, longitude);
+        setDestSpot({
+          name: geoAddr ? `📍 ${geoAddr}` : `📍 Lokasi Saya (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
+          lat: latitude,
+          lng: longitude
+        });
+        setDestGeoAddress(geoAddr);
+        setIsLocatingGPSDest(false);
+      },
+      (err) => {
+        console.error(err);
+        setIsLocatingGPSDest(false);
         alert('Gagal mengambil lokasi GPS. Mohon pastikan izin lokasi di HP/Browser diizinkan.');
       },
       { enableHighAccuracy: true, timeout: 10000 }
@@ -403,25 +458,48 @@ export default function BuyerMode({
                   ))}
                 </select>
               )}
+
+              {/* Geocoded Address Preview for Pickup */}
+              {pickupGeoAddress && (
+                <div className="flex items-start gap-1.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl px-3 py-2">
+                  <span className="text-emerald-500 mt-0.5 shrink-0">📍</span>
+                  <div>
+                    <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 block leading-none mb-0.5">Alamat Terdeteksi:</span>
+                    <span className="text-[11px] font-semibold text-emerald-900 dark:text-emerald-100 leading-tight">{pickupGeoAddress}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Destination Location Control */}
             <div className="bg-zinc-50 dark:bg-zinc-800/60 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-zinc-200/80 dark:border-zinc-700/60 space-y-2">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-1.5">
                 <label className="text-xs font-bold text-rose-500 dark:text-rose-400 flex items-center gap-1">
                   🏁 Lokasi Tujuan:
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setMapSelectionMode(mapSelectionMode === 'dest' ? null : 'dest')}
-                  className={`text-[10px] sm:text-[11px] font-extrabold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                    mapSelectionMode === 'dest'
-                      ? 'bg-rose-600 text-white animate-pulse shadow-md'
-                      : 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 hover:bg-rose-200'
-                  }`}
-                >
-                  {mapSelectionMode === 'dest' ? '🏁 Tandai di Peta...' : '📌 Drop Pin di Peta'}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleGetCurrentLocationDest}
+                    disabled={isLocatingGPSDest}
+                    className="text-[10px] sm:text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                    title="Gunakan Lokasi Saat Ini sebagai Tujuan"
+                  >
+                    <Crosshair className={`w-3.5 h-3.5 ${isLocatingGPSDest ? 'animate-spin' : ''}`} />
+                    {isLocatingGPSDest ? 'GPS...' : '🎯 Lokasi Saat Ini'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapSelectionMode(mapSelectionMode === 'dest' ? null : 'dest')}
+                    className={`text-[10px] sm:text-[11px] font-extrabold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      mapSelectionMode === 'dest'
+                        ? 'bg-rose-600 text-white animate-pulse shadow-md'
+                        : 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 hover:bg-rose-200'
+                    }`}
+                  >
+                    {mapSelectionMode === 'dest' ? '🏁 Tandai di Peta...' : '📌 Drop Pin di Peta'}
+                  </button>
+                </div>
               </div>
 
               {/* Saved Address Pills for Destination */}
@@ -470,38 +548,23 @@ export default function BuyerMode({
                   ))}
                 </select>
               )}
+
+              {/* Geocoded Address Preview for Destination */}
+              {destGeoAddress && (
+                <div className="flex items-start gap-1.5 bg-rose-50 dark:bg-rose-950/50 border border-rose-200/70 dark:border-rose-800/60 rounded-xl px-3 py-2">
+                  <span className="text-rose-500 mt-0.5 shrink-0">🏁</span>
+                  <div>
+                    <span className="text-[10px] font-extrabold text-rose-700 dark:text-rose-300 block leading-none mb-0.5">Alamat Terdeteksi:</span>
+                    <span className="text-[11px] font-semibold text-rose-900 dark:text-rose-100 leading-tight">{destGeoAddress}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>
 
-          {/* Mode Toggle & Device GPS Button */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                if (typeof window === 'undefined' || !('geolocation' in navigator)) {
-                  alert('Browser perangkat Anda tidak mendukung fitur GPS.');
-                  return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                  (pos) => {
-                    const { latitude, longitude } = pos.coords;
-                    setPickupSpot({
-                      name: `📍 Lokasi GPS Saya (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
-                      lat: latitude,
-                      lng: longitude
-                    });
-                  },
-                  (err) => alert('Gagal mengakses GPS: ' + err.message + '. Silakan izinkan akses lokasi pada pop-up browser Anda.'),
-                  { enableHighAccuracy: true }
-                );
-              }}
-              className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/50 hover:bg-emerald-100 text-[11px] font-extrabold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-            >
-              <Crosshair className="w-3.5 h-3.5 text-emerald-500" />
-              Gunakan Lokasi GPS Perangkat Saya
-            </button>
-
+          {/* Mode Toggle */}
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
             <button
               type="button"
               onClick={() => setIsManualLocation(!isManualLocation)}
@@ -530,20 +593,24 @@ export default function BuyerMode({
                 pickupLocation={{ lat: pickupSpot.lat, lng: pickupSpot.lng, address: pickupSpot.name }}
                 destLocation={{ lat: destSpot.lat, lng: destSpot.lng, address: destSpot.name }}
                 selectionMode={mapSelectionMode}
-                onSelectPickup={(lat, lng) => {
+                onSelectPickup={async (lat, lng) => {
+                  const geoAddr = await reverseGeocode(lat, lng);
                   setPickupSpot({
-                    name: `📍 Pin Jemput (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+                    name: geoAddr ? `📍 ${geoAddr}` : `📍 Pin Jemput (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
                     lat,
                     lng
                   });
+                  setPickupGeoAddress(geoAddr);
                   setMapSelectionMode(null);
                 }}
-                onSelectDest={(lat, lng) => {
+                onSelectDest={async (lat, lng) => {
+                  const geoAddr = await reverseGeocode(lat, lng);
                   setDestSpot({
-                    name: `🏁 Pin Tujuan (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+                    name: geoAddr ? `🏁 ${geoAddr}` : `🏁 Pin Tujuan (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
                     lat,
                     lng
                   });
+                  setDestGeoAddress(geoAddr);
                   setMapSelectionMode(null);
                 }}
               />
