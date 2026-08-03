@@ -1,0 +1,364 @@
+'use client';
+
+import React, { useState } from 'react';
+import { UserProfile, SavedAddress } from '@/types';
+import { User, Mail, Phone, Home, Building, GraduationCap, MapPin, Plus, Trash2, CheckCircle2, Store, Bike, Camera, Upload, Link } from 'lucide-react';
+
+interface ProfileModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  user: UserProfile;
+  onSaveProfile: (updatedUser: UserProfile) => void;
+}
+
+const DEFAULT_SAVED_ADDRESSES: SavedAddress[] = [
+  { id: 'addr-1', label: 'Rumah', name: 'Jl. Raya Maleber No. 15, RT 03/RW 01, Maleber', lat: -6.8155, lng: 107.1865 },
+  { id: 'addr-2', label: 'Kantor', name: 'Balai Desa Maleber, Karangtengah, Cianjur', lat: -6.8145, lng: 107.1860 }
+];
+
+export default function ProfileModal({
+  isOpen,
+  onClose,
+  user,
+  onSaveProfile
+}: ProfileModalProps) {
+  const [name, setName] = useState(user.name || '');
+  const [phone, setPhone] = useState(user.phone || '');
+  const [email, setEmail] = useState(user.email || '');
+  const [avatar, setAvatar] = useState(user.avatar || '');
+  const [storeName, setStoreName] = useState(user.storeName || '');
+  const [vehicleInfo, setVehicleInfo] = useState(user.vehicleInfo || '');
+  const [showUrlInput, setShowUrlInput] = useState(false);
+
+  // Saved addresses state
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(
+    user.savedAddresses && user.savedAddresses.length > 0 ? user.savedAddresses : DEFAULT_SAVED_ADDRESSES
+  );
+
+  // New address form state
+  const [newLabel, setNewLabel] = useState<'Rumah' | 'Kantor' | 'Sekolah' | 'Tempat Favorit'>('Rumah');
+  const [newAddressText, setNewAddressText] = useState('');
+  const [showAddAddr, setShowAddAddr] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setAvatar(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddAddress = () => {
+    if (!newAddressText.trim()) return;
+    const newAddr: SavedAddress = {
+      id: `addr-${Date.now()}`,
+      label: newLabel,
+      name: newAddressText.trim(),
+      lat: -6.8155 + (Math.random() - 0.5) * 0.005,
+      lng: 107.1865 + (Math.random() - 0.5) * 0.005
+    };
+    setSavedAddresses((prev) => [...prev, newAddr]);
+    setNewAddressText('');
+    setShowAddAddr(false);
+  };
+
+  const handleDeleteAddress = (id: string) => {
+    setSavedAddresses((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated: UserProfile = {
+      ...user,
+      name,
+      phone,
+      email,
+      avatar,
+      storeName: user.role === 'seller' ? storeName : user.storeName,
+      vehicleInfo: user.role === 'driver' ? vehicleInfo : user.vehicleInfo,
+      savedAddresses
+    };
+
+    onSaveProfile(updated);
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      onClose();
+    }, 1200);
+  };
+
+  const labelIcons = {
+    Rumah: <Home className="w-3.5 h-3.5 text-emerald-500" />,
+    Kantor: <Building className="w-3.5 h-3.5 text-blue-500" />,
+    Sekolah: <GraduationCap className="w-3.5 h-3.5 text-amber-500" />,
+    'Tempat Favorit': <MapPin className="w-3.5 h-3.5 text-rose-500" />
+  };
+
+  return (
+    <div className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 modal-overlay" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl max-w-lg w-full p-4 sm:p-6 space-y-5 shadow-2xl border border-zinc-200 dark:border-zinc-800 modal-content relative overflow-y-auto max-h-[92vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600">
+              <User className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white">Pengaturan Profil &amp; Alamat</h3>
+              <p className="text-xs text-zinc-500">Kelola data diri &amp; daftar alamat favorit Anda</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-bold flex items-center justify-center cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          
+          {/* Custom Avatar Upload Section */}
+          <div className="space-y-3 text-center">
+            <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">Foto Profil Anda:</label>
+            
+            <div className="relative w-20 h-20 mx-auto group">
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt={name}
+                  className="w-20 h-20 rounded-2xl object-cover ring-4 ring-emerald-500/30 shadow-lg mx-auto"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white font-black text-2xl flex items-center justify-center ring-4 ring-emerald-500/30 shadow-lg mx-auto">
+                  {name ? name.charAt(0).toUpperCase() : 'U'}
+                </div>
+              )}
+
+              <label className="absolute -bottom-1 -right-1 bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl shadow-md cursor-pointer transition-transform group-hover:scale-110">
+                <Camera className="w-4 h-4" />
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+              </label>
+            </div>
+
+            <div className="flex justify-center items-center gap-2 text-xs pt-1">
+              <label className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 px-3 py-1.5 rounded-xl font-extrabold cursor-pointer transition-colors flex items-center gap-1.5">
+                <Upload className="w-3.5 h-3.5 text-emerald-600" /> Unggah Foto Dari Galeri
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowUrlInput(!showUrlInput)}
+                className="p-1.5 text-zinc-400 hover:text-emerald-600 transition-colors"
+                title="Input via Link / URL"
+              >
+                <Link className="w-4 h-4" />
+              </button>
+            </div>
+
+            {showUrlInput && (
+              <input
+                type="text"
+                value={avatar}
+                onChange={(e) => setAvatar(e.target.value)}
+                placeholder="Tempel URL foto profil (https://...)"
+                className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            )}
+          </div>
+
+          {/* User Basic Info Fields */}
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">Nama Lengkap:</label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Masukkan nama lengkap Anda"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">Nomor WhatsApp / HP:</label>
+                <div className="relative">
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Contoh: 081234567890"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">Alamat Email:</label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="nama@maleber.des.id"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Role Specific Extra Fields */}
+            {user.role === 'seller' && (
+              <div>
+                <label className="text-xs font-bold text-amber-600 dark:text-amber-400 block mb-1">Nama Warung / Toko UMKM:</label>
+                <div className="relative">
+                  <Store className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500" />
+                  <input
+                    type="text"
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                    placeholder="Contoh: Warung Liwet Ibu Imas"
+                    className="w-full bg-amber-50/50 dark:bg-zinc-800 border border-amber-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {user.role === 'driver' && (
+              <div>
+                <label className="text-xs font-bold text-blue-600 dark:text-blue-400 block mb-1">Info Kendaraan Motor &amp; Plat Nomor:</label>
+                <div className="relative">
+                  <Bike className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
+                  <input
+                    type="text"
+                    value={vehicleInfo}
+                    onChange={(e) => setVehicleInfo(e.target.value)}
+                    placeholder="Contoh: Yamaha NMAX 155 (F 3312 WX)"
+                    className="w-full bg-blue-50/50 dark:bg-zinc-800 border border-blue-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION: SAVED FAVORITE ADDRESSES (RUMAH, KANTOR, SEKOLAH) */}
+          <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <h4 className="font-extrabold text-xs sm:text-sm text-zinc-900 dark:text-white flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-emerald-600" /> Alamat Favorit Tersimpan
+                </h4>
+                <p className="text-[11px] text-zinc-500">Memudahkan pilihan pengiriman &amp; ojek dalam 1-klik</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddAddr(!showAddAddr)}
+                className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-xl hover:bg-emerald-100 transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah Alamat
+              </button>
+            </div>
+
+            {/* Add New Address Input Form */}
+            {showAddAddr && (
+              <div className="bg-emerald-50/60 dark:bg-zinc-800/80 p-3 rounded-xl border border-emerald-200 dark:border-zinc-700 space-y-2.5 animate-slide-down">
+                <div className="flex gap-2">
+                  {(['Rumah', 'Kantor', 'Sekolah', 'Tempat Favorit'] as const).map((lbl) => (
+                    <button
+                      type="button"
+                      key={lbl}
+                      onClick={() => setNewLabel(lbl)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                        newLabel === lbl ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
+                      }`}
+                    >
+                      {labelIcons[lbl]} {lbl}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={newAddressText}
+                  onChange={(e) => setNewAddressText(e.target.value)}
+                  placeholder={`Masukkan alamat/patokan ${newLabel}...`}
+                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddAddress}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl cursor-pointer"
+                >
+                  Simpan Alamat Baru
+                </button>
+              </div>
+            )}
+
+            {/* List of Saved Addresses */}
+            <div className="space-y-2">
+              {savedAddresses.map((addr) => (
+                <div
+                  key={addr.id}
+                  className="flex items-center justify-between p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200/60 dark:border-zinc-700/50 text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="p-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shrink-0">
+                      {labelIcons[addr.label]}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="font-extrabold text-zinc-900 dark:text-white block">{addr.label}</span>
+                      <span className="text-zinc-500 truncate block text-[11px]">{addr.name}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteAddress(addr.id)}
+                    className="p-1 text-zinc-400 hover:text-rose-500 transition-colors cursor-pointer shrink-0"
+                    title="Hapus Alamat"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            className={`w-full font-black text-xs sm:text-sm py-3 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer btn-ripple ${
+              savedSuccess ? 'bg-emerald-500 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
+          >
+            {savedSuccess ? (
+              <>
+                <CheckCircle2 className="w-4 h-4" /> Profil &amp; Alamat Tersimpan!
+              </>
+            ) : (
+              'Simpan Perubahan Profil'
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
