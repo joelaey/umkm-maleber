@@ -15,6 +15,7 @@ import ChatModal from '@/components/ChatModal';
 import ToastContainer, { ToastMessage, ToastType } from '@/components/Toast';
 
 import { UserRole, UserProfile, Store, Product, CartItem, Order, RideRequest, DriverInfo, ChatMessage, Review, PlacePOI } from '@/types';
+import { triggerSystemNotification } from '@/lib/notificationUtils';
 import {
   INITIAL_STORES,
   INITIAL_PRODUCTS,
@@ -254,6 +255,11 @@ export default function Home() {
     setOrders((prev) => [newOrder, ...prev]);
     setCart([]);
     setIsCartOpen(false);
+
+    triggerSystemNotification('🍔 Pesanan Makanan Dikirim!', {
+      body: `Pesanan makanan Anda di ${newOrder.storeName} berhasil dikirim!`,
+      soundType: 'order'
+    });
 
     // Write row directly into Supabase PostgreSQL orders table
     try {
@@ -798,6 +804,8 @@ export default function Home() {
           onClose={() => setIsProfileOpen(false)}
           user={currentUser}
           onSaveProfile={handleSaveProfile}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
         />
       )}
 

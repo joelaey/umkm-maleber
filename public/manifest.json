@@ -1,0 +1,24 @@
+{
+  "name": "UMKM & Ojek Desa Maleber",
+  "short_name": "UMKM Maleber",
+  "description": "Platform Layanan Kuliner UMKM, Ojek Desa & Pengantaran Maleber, Karangtengah, Cianjur",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#059669",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/globe.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/globe.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

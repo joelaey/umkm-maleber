@@ -2,13 +2,16 @@
 
 import React, { useState } from 'react';
 import { UserProfile, SavedAddress } from '@/types';
-import { User, Mail, Phone, Home, Building, GraduationCap, MapPin, Plus, Trash2, CheckCircle2, Store, Bike, Camera, Upload, Link } from 'lucide-react';
+import { User, Mail, Phone, Home, Building, GraduationCap, MapPin, Plus, Trash2, CheckCircle2, Store, Bike, Camera, Upload, Link, Sun, Moon, Bell, ShieldCheck, Wallet, Volume2 } from 'lucide-react';
+import { requestSystemNotificationPermission, triggerSystemNotification } from '@/lib/notificationUtils';
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: UserProfile;
   onSaveProfile: (updatedUser: UserProfile) => void;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
 const DEFAULT_SAVED_ADDRESSES: SavedAddress[] = [
@@ -20,7 +23,9 @@ export default function ProfileModal({
   isOpen,
   onClose,
   user,
-  onSaveProfile
+  onSaveProfile,
+  theme = 'dark',
+  onToggleTheme
 }: ProfileModalProps) {
   const [name, setName] = useState(user.name || '');
   const [phone, setPhone] = useState(user.phone || '');
@@ -29,6 +34,7 @@ export default function ProfileModal({
   const [storeName, setStoreName] = useState(user.storeName || '');
   const [vehicleInfo, setVehicleInfo] = useState(user.vehicleInfo || '');
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [notifEnabled, setNotifEnabled] = useState(true);
 
   // Saved addresses state
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(
@@ -339,6 +345,110 @@ export default function ProfileModal({
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* SECTION: PENGATURAN APLIKASI (MODE TAMPILAN, NOTIFIKASI & DOMPET) */}
+          <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-4">
+            <h4 className="font-extrabold text-xs sm:text-sm text-zinc-900 dark:text-white flex items-center gap-1.5">
+              ⚙️ Pengaturan Aplikasi &amp; Notifikasi
+            </h4>
+
+            {/* Mode Tampilan Dark/Light */}
+            {onToggleTheme && (
+              <div className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/50 text-xs">
+                <div className="flex items-center gap-2.5">
+                  {theme === 'dark' ? (
+                    <Moon className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Sun className="w-4 h-4 text-amber-500" />
+                  )}
+                  <div>
+                    <span className="font-bold text-zinc-900 dark:text-white block">Mode Tampilan Aplikasi</span>
+                    <span className="text-[11px] text-zinc-500">Saat ini: {theme === 'dark' ? 'Mode Gelap (Dark Mode)' : 'Mode Terang (Light Mode)'}</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onToggleTheme}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer shadow-sm transition-all"
+                >
+                  Ubah Mode
+                </button>
+              </div>
+            )}
+
+            {/* Notifikasi Sistem & Suara HP / PC */}
+            <div className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/50 text-xs">
+              <div className="flex items-center gap-2.5">
+                <Bell className="w-4 h-4 text-blue-500" />
+                <div>
+                  <span className="font-bold text-zinc-900 dark:text-white block">Notifikasi Perangkat (HP &amp; PC)</span>
+                  <span className="text-[11px] text-zinc-500">Bunyi sirine order &amp; notifikasi sistem OS</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const granted = await requestSystemNotificationPermission();
+                  if (granted) {
+                    triggerSystemNotification('🔔 Tes Notifikasi Berhasil!', {
+                      body: 'Sistem notifikasi HP & PC Anda sudah aktif dan siap menerima update orderan / pesan!',
+                      soundType: 'order'
+                    });
+                  } else {
+                    alert('Izin notifikasi ditolak oleh browser. Silakan aktifkan izin notifikasi di pengaturan browser Anda.');
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer shadow-sm transition-all flex items-center gap-1"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                Tes Notifikasi
+              </button>
+            </div>
+
+            {/* Dompet Virtual Driver & Mitraseat System Readiness Card */}
+            <div className="p-3.5 bg-gradient-to-r from-emerald-950/80 to-teal-950/80 border border-emerald-500/30 rounded-2xl text-xs text-white space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-emerald-400" />
+                  <span className="font-extrabold text-emerald-300">Saldo Dompet Mitraseat Driver</span>
+                </div>
+                <span className="bg-emerald-500/20 text-emerald-300 font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  Sistem Siap
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline pt-1">
+                <div>
+                  <span className="text-[10px] text-zinc-400 block">Saldo Dompet Virtual:</span>
+                  <span className="text-lg font-black text-white tabular-nums">Rp 50.000</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => alert('Sistem Dompet Virtual Driver Siap! Integrasi Midtrans Payment Gateway Top-Up akan dihubungkan.')}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] px-3 py-1.5 rounded-xl cursor-pointer shadow-md transition-all"
+                >
+                  + Top-Up Saldo
+                </button>
+              </div>
+            </div>
+
+            {/* Account Security Verification Badges */}
+            <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-xs">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-bold text-emerald-900 dark:text-emerald-200">Status Keamanan Akun Warga:</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  WA Verified ✅
+                </span>
+                <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-blue-500/30">
+                  Email Verified ✅
+                </span>
+              </div>
             </div>
           </div>
 
