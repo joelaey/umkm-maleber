@@ -248,8 +248,8 @@ export const INITIAL_DRIVERS: DriverInfo[] = [
     isOnline: true,
     lat: -6.8150,
     lng: 107.1860,
-    rating: 4.95,
-    reviewCount: 87
+    rating: 5.0,
+    reviewCount: 1
   },
   {
     id: 'c2222222-2222-4222-8222-222222222222',
@@ -260,8 +260,8 @@ export const INITIAL_DRIVERS: DriverInfo[] = [
     isOnline: true,
     lat: -6.8170,
     lng: 107.1880,
-    rating: 4.90,
-    reviewCount: 64
+    rating: 5.0,
+    reviewCount: 1
   },
   {
     id: 'c3333333-3333-4333-8333-333333333333',
@@ -272,8 +272,8 @@ export const INITIAL_DRIVERS: DriverInfo[] = [
     isOnline: true,
     lat: -6.8135,
     lng: 107.1845,
-    rating: 4.88,
-    reviewCount: 42
+    rating: 5.0,
+    reviewCount: 1
   }
 ];
 

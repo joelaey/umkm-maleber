@@ -410,7 +410,7 @@ export default function AdminMode({
               <div className="flex justify-between items-center">
                 <h3 className="font-extrabold text-sm sm:text-base text-zinc-900 dark:text-white flex items-center gap-2">
                   <Bike className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
-                  Daftar Driver Ojek Desa ({drivers.length})
+                  Daftar Driver Ojek Desa ({drivers.length}) &bull; {drivers.filter(d => d.isOnline).length} Online
                 </h3>
                 <button
                   onClick={() => setShowAddDriverModal(true)}
@@ -420,23 +420,79 @@ export default function AdminMode({
                 </button>
               </div>
 
-              <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {drivers.map((d) => (
-                  <div key={d.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-300 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-300/30">
-                        🛵
+              <div className="space-y-3">
+                {[...drivers]
+                  .sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0))
+                  .map((d) => {
+                    const driverRides = rides.filter(r => r.driverId === d.id && r.status === 'completed');
+                    const driverOrders = orders.filter(o => o.driverId === d.id && o.status === 'completed');
+                    const driverEarnings = driverRides.reduce((a, r) => a + r.fare, 0) + driverOrders.reduce((a, o) => a + o.deliveryFee, 0);
+                    const activeJob = rides.find(r => r.driverId === d.id && r.status !== 'completed' && r.status !== 'cancelled') ||
+                                      orders.find(o => o.driverId === d.id && o.status !== 'completed' && o.status !== 'cancelled');
+                    return (
+                      <div key={d.id} className={`p-3.5 rounded-2xl border text-xs space-y-2.5 transition-all ${
+                        d.isOnline
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300/50 dark:border-emerald-700/50'
+                          : 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200/60 dark:border-zinc-700/50 opacity-70'
+                      }`}>
+                        {/* Header Row */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 border ${
+                              d.isOnline ? 'bg-emerald-100 dark:bg-emerald-950 border-emerald-300/30 text-emerald-700' : 'bg-zinc-200 dark:bg-zinc-800 border-zinc-300/30 text-zinc-500'
+                            }`}>
+                              🛵
+                            </div>
+                            <div>
+                              <h5 className="font-extrabold text-sm text-zinc-900 dark:text-white">{d.name}</h5>
+                              <p className="text-zinc-500 text-[11px]">{d.vehicleModel} &bull; {d.vehicleNumber}</p>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                            d.isOnline
+                              ? 'bg-emerald-500 text-white border-emerald-400 shadow-sm shadow-emerald-400/30'
+                              : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-300/40'
+                          }`}>
+                            {d.isOnline ? '● ONLINE' : '○ OFFLINE'}
+                          </span>
+                        </div>
+
+                        {/* Stats Row */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="bg-white dark:bg-zinc-900 p-2 rounded-xl text-center border border-zinc-200/60 dark:border-zinc-700/50">
+                            <span className="text-amber-500 font-black text-sm block">⭐ {d.rating}</span>
+                            <span className="text-zinc-500 text-[10px]">{d.reviewCount} ulasan</span>
+                          </div>
+                          <div className="bg-white dark:bg-zinc-900 p-2 rounded-xl text-center border border-zinc-200/60 dark:border-zinc-700/50">
+                            <span className="text-blue-600 dark:text-blue-400 font-black text-sm block">{driverRides.length + driverOrders.length}</span>
+                            <span className="text-zinc-500 text-[10px]">Trip Selesai</span>
+                          </div>
+                          <div className="bg-white dark:bg-zinc-900 p-2 rounded-xl text-center border border-zinc-200/60 dark:border-zinc-700/50">
+                            <span className="text-emerald-600 dark:text-emerald-400 font-black text-[11px] block">Rp {driverEarnings.toLocaleString('id-ID')}</span>
+                            <span className="text-zinc-500 text-[10px]">Penghasilan</span>
+                          </div>
+                        </div>
+
+                        {/* Location / Job Info */}
+                        {d.isOnline && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-800/60">
+                              📍 GPS: {d.lat.toFixed(4)}, {d.lng.toFixed(4)}
+                            </span>
+                            {activeJob ? (
+                              <span className="text-[10px] font-extrabold text-blue-800 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/70 px-2 py-1 rounded-lg border border-blue-300/40 flex items-center gap-1">
+                                🔄 Sedang Ada Job Aktif
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-2 py-1 rounded-lg border border-emerald-300/40">
+                                ✅ Standby Siap Terima Order
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="min-w-0">
-                        <h5 className="font-bold text-sm text-zinc-900 dark:text-white truncate">{d.name}</h5>
-                        <p className="text-xs text-zinc-500 truncate">{d.vehicleModel} ({d.vehicleNumber})</p>
-                      </div>
-                    </div>
-                    <span className="self-start sm:self-auto bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 border border-emerald-300/40">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> SIM &amp; STNK Terverifikasi
-                    </span>
-                  </div>
-                ))}
+                    );
+                  })}
               </div>
             </div>
           </div>

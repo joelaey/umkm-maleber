@@ -139,6 +139,15 @@ export default function DriverMode({
     (o) => (o.status === 'ready_for_pickup' || o.status === 'cooking') && !o.driverId
   );
 
+  // History for this driver
+  const myHistoryRides = rides
+    .filter((r) => r.driverId === driver.id)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+  const myHistoryOrders = orders
+    .filter((o) => o.driverId === driver.id)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
   // Calculate total driver earnings today
   const completedRides = rides.filter((r) => r.driverId === driver.id && r.status === 'completed');
   const completedOrders = orders.filter((o) => o.driverId === driver.id && o.status === 'completed');
@@ -486,6 +495,79 @@ export default function DriverMode({
           </div>
         </div>
 
+      </div>
+
+      {/* DRIVER ORDER & RIDE HISTORY SECTION */}
+      <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">📜</span>
+            <h3 className="font-extrabold text-base text-zinc-900 dark:text-white">Riwayat Perjalanan &amp; Pengantaran Driver ({myHistoryRides.length + myHistoryOrders.length})</h3>
+          </div>
+          <span className="text-xs font-bold text-zinc-500">Urutan: Terbaru ke Terlama</span>
+        </div>
+
+        {myHistoryRides.length === 0 && myHistoryOrders.length === 0 ? (
+          <div className="text-center py-6 bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-700/60">
+            <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Belum Ada Riwayat Perjalanan Selesai</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">Orderan ojek &amp; makanan yang Anda terima akan tercatat di sini.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* History Rides */}
+            {myHistoryRides.map((rd) => (
+              <div key={rd.id} className="p-4 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                    🛵 OJEK PENUMPANG
+                  </span>
+                  <span className="font-black text-emerald-600 tabular-nums text-sm">Rp {rd.fare.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="space-y-1 text-zinc-600 dark:text-zinc-300">
+                  <p className="font-bold text-zinc-900 dark:text-white">Penumpang: {rd.passengerName}</p>
+                  <p className="truncate">Awal: {rd.pickupAddress}</p>
+                  <p className="truncate">Tujuan: {rd.destAddress}</p>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
+                  <span className={`font-bold px-2 py-0.5 rounded-full ${
+                    rd.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                  }`}>
+                    {rd.status === 'completed' ? '✅ Selesai' : '❌ Dibatalkan'}
+                  </span>
+                  <span className="text-zinc-400">
+                    {new Date(rd.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {/* History Orders */}
+            {myHistoryOrders.map((ord) => (
+              <div key={ord.id} className="p-4 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                    📦 KURIR UMKM KULINER
+                  </span>
+                  <span className="font-black text-emerald-600 tabular-nums text-sm">Ongkir: Rp {ord.deliveryFee.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="space-y-1 text-zinc-600 dark:text-zinc-300">
+                  <p className="font-bold text-zinc-900 dark:text-white">Toko: {ord.storeName}</p>
+                  <p className="truncate">Penerima: {ord.buyerName} ({ord.deliveryAddress})</p>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
+                  <span className={`font-bold px-2 py-0.5 rounded-full ${
+                    ord.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                  }`}>
+                    {ord.status === 'completed' ? '✅ Selesai' : '❌ Dibatalkan'}
+                  </span>
+                  <span className="text-zinc-400">
+                    {new Date(ord.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* DRIVER REVIEWS & COMMENTS FEED — DYNAMIC REAL-TIME DATA FOR THIS DRIVER */}

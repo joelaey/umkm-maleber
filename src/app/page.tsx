@@ -372,40 +372,26 @@ export default function Home() {
     }
 
     if (targetType === 'product') {
+      const allProductRevs = [newRev, ...reviews].filter((r) => r.targetId === targetId && r.targetType === 'product');
+      const avg = Math.round((allProductRevs.reduce((acc, r) => acc + r.rating, 0) / allProductRevs.length) * 10) / 10;
       setProducts((prev) =>
-        prev.map((p) => {
-          if (p.id === targetId) {
-            const updatedRating = Math.round((((p.rating || 4.8) + newRating) / 2) * 10) / 10;
-            return { ...p, rating: updatedRating };
-          }
-          return p;
-        })
+        prev.map((p) => (p.id === targetId ? { ...p, rating: avg } : p))
       );
       addToast('success', 'Ulasan Berhasil Terkirim! ⭐', 'Terima kasih atas penilaian dan ulasan Anda.');
     } else if (targetType === 'store') {
+      const allStoreRevs = [newRev, ...reviews].filter((r) => r.targetId === targetId && r.targetType === 'store');
+      const avg = Math.round((allStoreRevs.reduce((acc, r) => acc + r.rating, 0) / allStoreRevs.length) * 10) / 10;
       setStores((prev) =>
-        prev.map((s) => {
-          if (s.id === targetId) {
-            const count = (s.reviewCount || 1) + 1;
-            const updatedRating = Math.round(((s.rating + newRating) / 2) * 10) / 10;
-            return { ...s, rating: updatedRating, reviewCount: count };
-          }
-          return s;
-        })
+        prev.map((s) => (s.id === targetId ? { ...s, rating: avg, reviewCount: allStoreRevs.length } : s))
       );
       addToast('success', 'Ulasan Warung Terkirim! ⭐', 'Terima kasih telah mendukung UMKM Desa Maleber.');
     } else {
+      const allDriverRevs = [newRev, ...reviews].filter((r) => r.targetId === targetId && r.targetType === 'driver');
+      const avg = Math.round((allDriverRevs.reduce((acc, r) => acc + r.rating, 0) / allDriverRevs.length) * 10) / 10;
       setDrivers((prev) =>
-        prev.map((d) => {
-          if (d.id === targetId) {
-            const count = (d.reviewCount || 1) + 1;
-            const updatedRating = Math.round(((d.rating + newRating) / 2) * 10) / 10;
-            return { ...d, rating: updatedRating, reviewCount: count };
-          }
-          return d;
-        })
+        prev.map((d) => (d.id === targetId ? { ...d, rating: avg, reviewCount: allDriverRevs.length } : d))
       );
-      addToast('success', 'Ulasan Driver Terkirim! ⭐ 🛵', 'Terima kasih atas penilaian Anda untuk Mitra Driver.');
+      addToast('success', 'Ulasan Driver Terkirim! ⭐ 🛵', `Driver mendapat rating ${avg} ⭐ dari ${allDriverRevs.length} ulasan.`);
     }
   };
 
@@ -565,17 +551,46 @@ export default function Home() {
     });
   };
 
-  const handleToggleDriverOnline = (driverId: string) => {
+  const handleToggleDriverOnline = async (driverId: string) => {
+    let nextState = false;
+    let targetLat = -6.8155;
+    let targetLng = 107.1865;
+
     setDrivers((prev) =>
       prev.map((d) => {
         if (d.id === driverId) {
-          const nextState = !d.isOnline;
-          addToast(nextState ? 'success' : 'warning', `Status Driver: ${nextState ? 'ONLINE' : 'OFFLINE'}`, nextState ? 'Siap menerima orderan ojek & kurir.' : 'Anda sedang tidak aktif.');
+          nextState = !d.isOnline;
+          targetLat = d.lat;
+          targetLng = d.lng;
+          addToast(
+            nextState ? 'success' : 'warning',
+            `Status Driver: ${nextState ? 'ONLINE' : 'OFFLINE'}`,
+            nextState ? 'Siap menerima orderan ojek & kurir.' : 'Anda sedang tidak aktif (Icon hilang dari peta).'
+          );
           return { ...d, isOnline: nextState };
         }
         return d;
       })
     );
+
+    // Persist online/offline state to Supabase PostgreSQL database
+    try {
+      await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_driver_location',
+          data: {
+            driverId,
+            lat: targetLat,
+            lng: targetLng,
+            isOnline: nextState
+          }
+        })
+      });
+    } catch (e) {
+      console.error('Failed to sync driver online status:', e);
+    }
   };
 
   const handleAddProduct = async (newProd: Omit<Product, 'id'>) => {
