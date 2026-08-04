@@ -137,8 +137,8 @@ export const INITIAL_STORES: Store[] = [
     lng: 107.1865,
     ownerName: 'Ibu Imas',
     phone: '081234567891',
-    rating: 4.9,
-    reviewCount: 48,
+    rating: 5.0,
+    reviewCount: 1,
     image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
     isActive: true,
     description: 'Nasi Liwet komplit khas Cianjur, Nasi Timbel, Ayam Goreng Kampung & Sambal Dadak Maleber.'
@@ -152,8 +152,8 @@ export const INITIAL_STORES: Store[] = [
     lng: 107.1878,
     ownerName: 'Pak Mangun',
     phone: '081234567892',
-    rating: 4.85,
-    reviewCount: 32,
+    rating: 5.0,
+    reviewCount: 0,
     image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
     isActive: true,
     description: 'Manisan buah pala, cermai, tauco asli khas Cianjur & cemilan tradisional Maleber.'
@@ -167,8 +167,8 @@ export const INITIAL_STORES: Store[] = [
     lng: 107.1852,
     ownerName: 'Kang Ujang',
     phone: '081234567893',
-    rating: 4.95,
-    reviewCount: 56,
+    rating: 5.0,
+    reviewCount: 0,
     image: 'https://images.unsplash.com/photo-1610348725531-843dff563e2c?auto=format&fit=crop&w=600&q=80',
     isActive: true,
     description: 'Beras Pandanwangi asli Cianjur dari sawah irigasi teknis Desa Maleber.'
@@ -189,7 +189,29 @@ export const INITIAL_PRODUCTS: Product[] = [
     isAvailable: true,
     unit: 'porsi',
     rating: 4.9,
-    salesCount: 245
+    salesCount: 245,
+    variantGroups: [
+      {
+        id: 'vg-sambal',
+        name: 'Pilihan Sambal',
+        required: true,
+        options: [
+          { id: 'opt-s1', name: 'Sambal Dadak Khas Maleber', extraPrice: 0 },
+          { id: 'opt-s2', name: 'Sambal Terasi Bakar', extraPrice: 0 },
+          { id: 'opt-s3', name: 'Sambal Hijau Pedas', extraPrice: 1000 }
+        ]
+      },
+      {
+        id: 'vg-lauk',
+        name: 'Lauk Extra & Topping',
+        required: false,
+        options: [
+          { id: 'opt-l1', name: 'Extra Telur Dadar Kebun', extraPrice: 4000 },
+          { id: 'opt-l2', name: 'Extra Tahu & Tempe Bacem', extraPrice: 3000 },
+          { id: 'opt-l3', name: 'Extra Ayam Goreng Kampung', extraPrice: 12000 }
+        ]
+      }
+    ]
   },
   {
     id: 'b2222222-2222-4222-8222-222222222222',
@@ -209,17 +231,19 @@ export const INITIAL_PRODUCTS: Product[] = [
   {
     id: 'b3333333-3333-4333-8333-333333333333',
     storeId: '22222222-2222-4222-8222-222222222222',
-    name: 'Manisan Buah Pala & Cermai 250g',
-    price: 18000,
-    description: 'Manisan basah buah pala segar dengan gula murni.',
-    ingredients: ['Buah Pala', 'Gula Pasir Murni'],
-    category: 'Hasil Tani',
+    name: 'Kue Tampah Tradisional (PO 2 Hari)',
+    price: 120000,
+    description: 'Tampah isi 50 pcs kue basah tradisional khas Maleber (Klepon, Onde-onde, Nagasari, Dadar Gulung). Khusus Pre-Order 2 hari sebelum dikirim.',
+    ingredients: ['Tepung Ketan', 'Gula Aren', 'Kelapa Parut', 'Santan Segar'],
+    category: 'Kuliner',
     image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
     images: ['https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80'],
     isAvailable: true,
-    unit: 'bungkus',
-    rating: 4.8,
-    salesCount: 142
+    isPreOrder: true,
+    preOrderDays: 2,
+    unit: 'tampah',
+    rating: 5.0,
+    salesCount: 64
   },
   {
     id: 'b4444444-4444-4444-8444-444444444444',

@@ -21,6 +21,7 @@ interface ChatModalProps {
     senderRole: UserRole;
     receiverId: string;
     receiverName: string;
+    receiverRole?: UserRole;
     message: string;
   }) => void;
 }
@@ -68,31 +69,74 @@ export default function ChatModal({
   const currentUserRole = currentUser?.role || 'buyer';
   const currentUserName = currentUser?.name || 'Warga Maleber';
 
-  // Filter messages strictly for THIS 1-on-1 private room thread (No Group Chat mixing)
+  // Strict End-to-End Private 1-on-1 Channel Filter (Zero Leakage between Seller, Buyer, Driver, or Orders)
   const filteredMessages = messages.filter((m) => {
-    // 1-on-1 Pairwise Room Check: Must be between current user and target user only!
-    const isDirectUserPair =
-      (m.senderId === currentUserId && m.receiverId === targetUser.id) ||
-      (m.senderId === targetUser.id && m.receiverId === currentUserId) ||
-      (m.senderName === currentUserName && m.receiverName === targetUser.name) ||
-      (m.senderName === targetUser.name && m.receiverName === currentUserName) ||
-      (m.senderRole === currentUserRole && (m.receiverId === targetUser.id || m.receiverName === targetUser.name)) ||
-      ((m.senderId === targetUser.id || m.senderName === targetUser.name) && (m.receiverId === currentUserId || m.receiverName === currentUserName));
-
-    if (!isDirectUserPair) return false;
-
+    // 1. Order-context chat room: STRICT match on orderId and exact 2-way role pair
     if (orderId) {
-      return m.orderId === orderId;
+      if (m.orderId !== orderId) return false;
+
+      const roleA = currentUserRole;
+      const roleB = targetUser.role;
+
+      // Case A: Current User (Role A) sent message to Target User (Role B)
+      const isSenderA = m.senderRole === roleA || m.senderId === currentUserId || m.senderName === currentUserName;
+      const isReceiverB = m.receiverRole === roleB || m.receiverId === targetUser.id || m.receiverName === targetUser.name || (!m.receiverRole && (m.receiverId === targetUser.id || m.receiverName === targetUser.name));
+
+      // Case B: Target User (Role B) sent message to Current User (Role A)
+      const isSenderB = m.senderRole === roleB || m.senderId === targetUser.id || m.senderName === targetUser.name;
+      const isReceiverA = m.receiverRole === roleA || m.receiverId === currentUserId || m.receiverName === currentUserName || (!m.receiverRole && (m.receiverId === currentUserId || m.receiverName === currentUserName));
+
+      const isDirection1 = isSenderA && isReceiverB;
+      const isDirection2 = isSenderB && isReceiverA;
+
+      return isDirection1 || isDirection2;
     }
+
+    // 2. Ride-context chat room: STRICT match on rideId and exact 2-way role pair
     if (rideId) {
-      return m.rideId === rideId;
+      if (m.rideId !== rideId) return false;
+
+      const roleA = currentUserRole;
+      const roleB = targetUser.role;
+
+      const isSenderA = m.senderRole === roleA || m.senderId === currentUserId || m.senderName === currentUserName;
+      const isReceiverB = m.receiverRole === roleB || m.receiverId === targetUser.id || m.receiverName === targetUser.name || (!m.receiverRole && (m.receiverId === targetUser.id || m.receiverName === targetUser.name));
+
+      const isSenderB = m.senderRole === roleB || m.senderId === targetUser.id || m.senderName === targetUser.name;
+      const isReceiverA = m.receiverRole === roleA || m.receiverId === currentUserId || m.receiverName === currentUserName || (!m.receiverRole && (m.receiverId === currentUserId || m.receiverName === currentUserName));
+
+      return (isSenderA && isReceiverB) || (isSenderB && isReceiverA);
     }
-    return !m.orderId && !m.rideId;
+
+    // 3. General direct chat room (only when no orderId or rideId is specified)
+    if (m.orderId || m.rideId) return false;
+
+    const isDirect1 = (m.senderId === currentUserId || m.senderName === currentUserName) && (m.receiverId === targetUser.id || m.receiverName === targetUser.name);
+    const isDirect2 = (m.senderId === targetUser.id || m.senderName === targetUser.name) && (m.receiverId === currentUserId || m.receiverName === currentUserName);
+
+    return isDirect1 || isDirect2;
   });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [filteredMessages]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    // Auto mark messages as read when opening chat room
+    fetch('/api/db', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'mark_messages_read',
+        data: {
+          orderId,
+          rideId,
+          currentUserId
+        }
+      })
+    }).catch(() => {});
+  }, [isOpen, filteredMessages.length, orderId, rideId, currentUserId]);
 
   if (!isOpen) return null;
 
@@ -108,6 +152,7 @@ export default function ChatModal({
       senderRole: currentUserRole,
       receiverId: targetUser.id,
       receiverName: targetUser.name,
+      receiverRole: targetUser.role,
       message: text.trim()
     });
 
@@ -116,12 +161,12 @@ export default function ChatModal({
 
   const roleLabel =
     targetUser.role === 'seller'
-      ? 'Penjual UMKM'
+      ? 'Penjual Toko'
       : targetUser.role === 'driver'
-      ? 'Mitra Driver Ojek'
+      ? 'Kurir Driver'
       : targetUser.role === 'admin'
       ? 'Petugas Desa'
-      : 'Pemesan / Warga';
+      : 'Pembeli (Pemesan)';
 
   const RoleIcon =
     targetUser.role === 'seller'
@@ -198,7 +243,7 @@ export default function ChatModal({
             </div>
           ) : (
             filteredMessages.map((msg) => {
-              const isMe = msg.senderId === currentUserId;
+              const isMe = msg.senderId === currentUserId || msg.senderName === currentUserName;
               return (
                 <div
                   key={msg.id}
@@ -212,13 +257,26 @@ export default function ChatModal({
                   </div>
 
                   <div
-                    className={`max-w-[80%] p-3 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                    className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed shadow-sm ${
                       isMe
                         ? 'bg-emerald-600 text-white rounded-br-none'
                         : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 rounded-bl-none'
                     }`}
                   >
-                    <p>{msg.message}</p>
+                    <p className="inline pr-1">{msg.message}</p>
+                    {isMe && (
+                      <span className="inline-flex items-center ml-2 float-right mt-1 gap-1" title={msg.isRead ? 'Telah Dibaca (Centang Biru)' : 'Terkirim'}>
+                        {msg.isRead ? (
+                          <span className="flex items-center gap-0.5 text-sky-200 font-extrabold text-[10px] bg-emerald-700/60 px-1.5 py-0.5 rounded-md">
+                            <CheckCheck className="w-3.5 h-3.5 text-sky-200" /> Dibaca
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-0.5 text-emerald-200 font-medium text-[10px] bg-emerald-700/30 px-1.5 py-0.5 rounded-md">
+                            <CheckCheck className="w-3.5 h-3.5 text-emerald-200" /> Terkirim
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </div>
                 </div>
               );

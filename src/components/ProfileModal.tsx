@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { UserProfile, SavedAddress } from '@/types';
-import { User, Mail, Phone, Home, Building, GraduationCap, MapPin, Plus, Trash2, CheckCircle2, Store, Bike, Camera, Upload, Link, Sun, Moon, Bell, ShieldCheck, Wallet, Volume2 } from 'lucide-react';
+import { User, Mail, Phone, Home, Building, GraduationCap, MapPin, Plus, Trash2, CheckCircle2, Store, Bike, Camera, Upload, Link, Sun, Moon, Bell, ShieldCheck, Wallet, Volume2, Map as MapIcon, Crosshair } from 'lucide-react';
 import { requestSystemNotificationPermission, triggerSystemNotification } from '@/lib/notificationUtils';
+import MapComponent from './MapComponent';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -41,6 +42,19 @@ export default function ProfileModal({
     user.savedAddresses && user.savedAddresses.length > 0 ? user.savedAddresses : DEFAULT_SAVED_ADDRESSES
   );
 
+  // Store map state for Seller
+  const [storeCoords, setStoreCoords] = useState({ lat: -6.8155, lng: 107.1865 });
+  const [storeAddressText, setStoreAddressText] = useState(
+    user.savedAddresses && user.savedAddresses[0]?.name
+      ? user.savedAddresses[0].name
+      : 'Jl. Raya Maleber No. 12, RT 02/RW 01, Dusun Manis, Maleber'
+  );
+  const [showStoreMap, setShowStoreMap] = useState(true);
+
+  // Buyer map state
+  const [newCoords, setNewCoords] = useState({ lat: -6.8155, lng: 107.1865 });
+  const [showAddrMap, setShowAddrMap] = useState(true);
+
   // New address form state
   const [newLabel, setNewLabel] = useState<'Rumah' | 'Kantor' | 'Sekolah' | 'Tempat Favorit'>('Rumah');
   const [newAddressText, setNewAddressText] = useState('');
@@ -48,6 +62,36 @@ export default function ProfileModal({
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleStoreMarkerDragEnd = async (newLat: number, newLng: number) => {
+    setStoreCoords({ lat: newLat, lng: newLng });
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLng}`);
+      const data = await res.json();
+      if (data && data.display_name) {
+        setStoreAddressText(data.display_name);
+      } else {
+        setStoreAddressText(`Lokasi Toko (${newLat.toFixed(5)}, ${newLng.toFixed(5)}), Maleber`);
+      }
+    } catch {
+      setStoreAddressText(`Lokasi Toko (${newLat.toFixed(5)}, ${newLng.toFixed(5)}), Maleber`);
+    }
+  };
+
+  const handleBuyerMarkerDragEnd = async (newLat: number, newLng: number) => {
+    setNewCoords({ lat: newLat, lng: newLng });
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLng}`);
+      const data = await res.json();
+      if (data && data.display_name) {
+        setNewAddressText(data.display_name);
+      } else {
+        setNewAddressText(`Alamat GPS (${newLat.toFixed(5)}, ${newLng.toFixed(5)}), Maleber`);
+      }
+    } catch {
+      setNewAddressText(`Alamat GPS (${newLat.toFixed(5)}, ${newLng.toFixed(5)}), Maleber`);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,8 +112,8 @@ export default function ProfileModal({
       id: `addr-${Date.now()}`,
       label: newLabel,
       name: newAddressText.trim(),
-      lat: -6.8155 + (Math.random() - 0.5) * 0.005,
-      lng: 107.1865 + (Math.random() - 0.5) * 0.005
+      lat: newCoords.lat,
+      lng: newCoords.lng
     };
     setSavedAddresses((prev) => [...prev, newAddr]);
     setNewAddressText('');
@@ -82,6 +126,11 @@ export default function ProfileModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const finalSavedAddresses: SavedAddress[] = user.role === 'seller'
+      ? [{ id: 'addr-store-1', label: 'Rumah' as const, name: `Toko: ${storeName || 'Toko UMKM'} - ${storeAddressText}`, lat: storeCoords.lat, lng: storeCoords.lng }]
+      : savedAddresses;
+
     const updated: UserProfile = {
       ...user,
       name,
@@ -90,7 +139,7 @@ export default function ProfileModal({
       avatar,
       storeName: user.role === 'seller' ? storeName : user.storeName,
       vehicleInfo: user.role === 'driver' ? vehicleInfo : user.vehicleInfo,
-      savedAddresses
+      savedAddresses: finalSavedAddresses
     };
 
     onSaveProfile(updated);
@@ -299,86 +348,161 @@ export default function ProfileModal({
             )}
           </div>
 
-          {/* SECTION: SAVED FAVORITE ADDRESSES (RUMAH, KANTOR, SEKOLAH) */}
-          <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <h4 className="font-extrabold text-xs sm:text-sm text-zinc-900 dark:text-white flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-emerald-600" /> Alamat Favorit Tersimpan
-                </h4>
-                <p className="text-[11px] text-zinc-500">Memudahkan pilihan pengiriman &amp; ojek dalam 1-klik</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddAddr(!showAddAddr)}
-                className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-xl hover:bg-emerald-100 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> Tambah Alamat
-              </button>
-            </div>
-
-            {/* Add New Address Input Form */}
-            {showAddAddr && (
-              <div className="bg-emerald-50/60 dark:bg-zinc-800/80 p-3 rounded-xl border border-emerald-200 dark:border-zinc-700 space-y-2.5 animate-slide-down">
-                <div className="flex gap-2">
-                  {(['Rumah', 'Kantor', 'Sekolah', 'Tempat Favorit'] as const).map((lbl) => (
-                    <button
-                      type="button"
-                      key={lbl}
-                      onClick={() => setNewLabel(lbl)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                        newLabel === lbl ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
-                      }`}
-                    >
-                      {labelIcons[lbl]} {lbl}
-                    </button>
-                  ))}
+          {/* SECTION: SELLER STORE LOCATION WITH MAP DROP PIN */}
+          {user.role === 'seller' ? (
+            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-3">
+              <div className="flex justify-between items-center flex-wrap gap-1">
+                <div>
+                  <h4 className="font-extrabold text-xs sm:text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                    <Store className="w-4 h-4 text-amber-500" /> Alamat &amp; Titik Lokasi Toko UMKM
+                  </h4>
+                  <p className="text-[11px] text-zinc-500">Tentukan posisi toko di peta untuk akurasi pengantaran kurir driver</p>
                 </div>
-                <input
-                  type="text"
-                  value={newAddressText}
-                  onChange={(e) => setNewAddressText(e.target.value)}
-                  placeholder={`Masukkan alamat/patokan ${newLabel}...`}
-                  className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
                 <button
                   type="button"
-                  onClick={handleAddAddress}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl cursor-pointer"
+                  onClick={() => setShowStoreMap(!showStoreMap)}
+                  className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
+                    showStoreMap
+                      ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-500'
+                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200'
+                  }`}
                 >
-                  Simpan Alamat Baru
+                  <MapIcon className="w-3.5 h-3.5" />
+                  {showStoreMap ? 'Tutup Peta' : '📌 Drop Pin Peta Toko'}
                 </button>
               </div>
-            )}
 
-            {/* List of Saved Addresses */}
-            <div className="space-y-2">
-              {savedAddresses.map((addr) => (
-                <div
-                  key={addr.id}
-                  className="flex items-center justify-between p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200/60 dark:border-zinc-700/50 text-xs"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="p-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shrink-0">
-                      {labelIcons[addr.label]}
-                    </span>
-                    <div className="min-w-0">
-                      <span className="font-extrabold text-zinc-900 dark:text-white block">{addr.label}</span>
-                      <span className="text-zinc-500 truncate block text-[11px]">{addr.name}</span>
-                    </div>
+              {/* Interactive Leaflet Map Component for Seller Store */}
+              {showStoreMap && (
+                <div className="space-y-1.5 border border-amber-500/50 rounded-2xl overflow-hidden p-1 bg-amber-50 dark:bg-amber-950/40">
+                  <span className="text-[10px] font-bold text-amber-900 dark:text-amber-200 px-2 block">
+                    📍 Klik / geser titik pin merah untuk menandai posisi persis Toko UMKM Anda:
+                  </span>
+                  <div className="h-48 rounded-xl overflow-hidden shadow-inner">
+                    <MapComponent
+                      center={storeCoords}
+                      zoom={16}
+                      selectionMode="dest"
+                      destLocation={{ lat: storeCoords.lat, lng: storeCoords.lng, address: storeAddressText }}
+                      onSelectDest={(lat, lng) => handleStoreMarkerDragEnd(lat, lng)}
+                    />
                   </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">Detail Alamat Fisik Toko:</label>
+                <input
+                  type="text"
+                  value={storeAddressText}
+                  onChange={(e) => setStoreAddressText(e.target.value)}
+                  placeholder="Contoh: Jl. Raya Maleber No. 12, RT 02/RW 01, Dusun Manis"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  required
+                />
+              </div>
+            </div>
+          ) : (
+            /* SECTION: BUYER SAVED ADDRESSES WITH MAP DROP PIN */
+            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="font-extrabold text-xs sm:text-sm text-zinc-900 dark:text-white flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-emerald-600" /> Alamat Favorit Tersimpan
+                  </h4>
+                  <p className="text-[11px] text-zinc-500">Memudahkan pilihan pengiriman &amp; ojek dalam 1-klik</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddAddr(!showAddAddr)}
+                  className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-xl hover:bg-emerald-100 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Tambah Alamat
+                </button>
+              </div>
+
+              {/* Add New Address Input Form with Map Drop Pin */}
+              {showAddAddr && (
+                <div className="bg-emerald-50/60 dark:bg-zinc-800/80 p-3 rounded-xl border border-emerald-200 dark:border-zinc-700 space-y-2.5 animate-slide-down">
+                  <div className="flex gap-2">
+                    {(['Rumah', 'Kantor', 'Sekolah', 'Tempat Favorit'] as const).map((lbl) => (
+                      <button
+                        type="button"
+                        key={lbl}
+                        onClick={() => setNewLabel(lbl)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                          newLabel === lbl ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
+                        }`}
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Interactive Leaflet Map for Buyer Add Address */}
+                  {showAddrMap && (
+                    <div className="space-y-1 border border-emerald-500/40 rounded-xl overflow-hidden p-1 bg-white dark:bg-zinc-900">
+                      <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 px-2 block">
+                        📍 Klik / geser pin peta untuk tentukan lokasi {newLabel}:
+                      </span>
+                      <div className="h-40 rounded-lg overflow-hidden shadow-inner">
+                        <MapComponent
+                          center={newCoords}
+                          zoom={16}
+                          selectionMode="dest"
+                          destLocation={{ lat: newCoords.lat, lng: newCoords.lng, address: newAddressText }}
+                          onSelectDest={(lat, lng) => handleBuyerMarkerDragEnd(lat, lng)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <input
+                    type="text"
+                    value={newAddressText}
+                    onChange={(e) => setNewAddressText(e.target.value)}
+                    placeholder={`Masukkan alamat/patokan ${newLabel}...`}
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
                   <button
                     type="button"
-                    onClick={() => handleDeleteAddress(addr.id)}
-                    className="p-1 text-zinc-400 hover:text-rose-500 transition-colors cursor-pointer shrink-0"
-                    title="Hapus Alamat"
+                    onClick={handleAddAddress}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 rounded-xl cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    Simpan Alamat Baru
                   </button>
                 </div>
-              ))}
+              )}
+
+              {/* List of Saved Addresses */}
+              <div className="space-y-2">
+                {savedAddresses.map((addr) => (
+                  <div
+                    key={addr.id}
+                    className="flex items-center justify-between p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200/60 dark:border-zinc-700/50 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="p-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shrink-0 font-extrabold text-emerald-600">
+                        📍
+                      </span>
+                      <div className="min-w-0">
+                        <span className="font-extrabold text-zinc-900 dark:text-white block">{addr.label}</span>
+                        <span className="text-zinc-500 truncate block text-[11px]">{addr.name}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAddress(addr.id)}
+                      className="p-1 text-zinc-400 hover:text-rose-500 transition-colors cursor-pointer shrink-0"
+                      title="Hapus Alamat"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* SECTION: PENGATURAN APLIKASI (MODE TAMPILAN, NOTIFIKASI & DOMPET) */}
           <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-4">

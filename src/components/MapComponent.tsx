@@ -3,8 +3,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Store, DriverInfo, PlacePOI } from '@/types';
 import { MALEBER_CENTER, INITIAL_PLACES } from '@/lib/mockData';
-import { calculateRoadDistance, formatDistanceText, getOSRMRoute, searchRealPlacesOSM } from '@/lib/geoUtils';
+import { calculateRoadDistance, formatDistanceText, getOSRMRoute, searchRealPlacesOSM, snapPointToPolyline, getDistanceMeters } from '@/lib/geoUtils';
 import { Layers, Target, Compass, MapPin, Search } from 'lucide-react';
+
+const globalOsrmCache = new Map<string, any>();
 
 interface MapComponentProps {
   stores?: Store[];
@@ -20,6 +22,8 @@ interface MapComponentProps {
   className?: string;
   zoom?: number;
   center?: { lat: number; lng: number };
+  isHistoricalView?: boolean;
+  forceStreetMode?: boolean;
 }
 
 export default function MapComponent({
@@ -35,12 +39,23 @@ export default function MapComponent({
   driverProgress = 0,
   className = 'h-[380px] w-full rounded-3xl shadow-inner',
   zoom = 16,
-  center = { lat: MALEBER_CENTER.lat, lng: MALEBER_CENTER.lng }
+  center = { lat: MALEBER_CENTER.lat, lng: MALEBER_CENTER.lng },
+  isHistoricalView = false,
+  forceStreetMode = false
 }: MapComponentProps) {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [L, setL] = useState<any>(null);
-  const [mapTileMode, setMapTileMode] = useState<'satellite' | 'street'>('satellite');
+  const [mapTileMode, setMapTileMode] = useState<'satellite' | 'street'>(
+    (isHistoricalView || forceStreetMode) ? 'street' : 'satellite'
+  );
   const triggerResetRef = useRef<(() => void) | null>(null);
+  const triggerFocusUserLocationRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (isHistoricalView || forceStreetMode) {
+      setMapTileMode('street');
+    }
+  }, [isHistoricalView, forceStreetMode]);
 
   // Live OpenStreetMap Nominatim Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,91 +100,97 @@ export default function MapComponent({
   return (
     <div className={`relative overflow-hidden border border-emerald-200/30 dark:border-zinc-800 ${className}`}>
       
-      {/* Google Maps Style Live Search Bar for Real Places (OpenStreetMap Nominatim API) */}
-      <div className="absolute top-3 left-3 z-[1000] max-w-[220px] sm:max-w-xs w-full">
-        <div className="relative">
-          <div className="glass-dark border border-emerald-500/30 rounded-2xl p-1.5 flex items-center gap-2 shadow-2xl">
-            <Search className="w-4 h-4 text-emerald-400 ml-1.5 shrink-0" />
-            <input
-              type="text"
-              placeholder="Cari lokasi nyata di OSM..."
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full placeholder:text-zinc-400"
-            />
-            {isSearching && (
-              <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mr-1 shrink-0"></div>
-            )}
-          </div>
-
-          {searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1.5 bg-zinc-900/95 backdrop-blur-md border border-zinc-700/80 rounded-2xl p-2 shadow-2xl space-y-1 max-h-56 overflow-y-auto z-[1010]">
-              {searchResults.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleSelectSearchResult(item)}
-                  className="w-full text-left p-2 rounded-xl hover:bg-zinc-800 transition-colors flex items-start gap-2 group cursor-pointer"
-                >
-                  <span className="text-sm shrink-0">{item.icon}</span>
-                  <div>
-                    <h5 className="font-extrabold text-xs text-white group-hover:text-emerald-400 transition-colors line-clamp-1">{item.name}</h5>
-                    <p className="text-[10px] text-zinc-400 line-clamp-1">{item.address}</p>
-                  </div>
-                </button>
-              ))}
+      {/* Google Maps Style Live Search Bar (Hidden in Historical View & Selection Mode to avoid clutter) */}
+      {!isHistoricalView && !selectionMode && (
+        <div className="absolute z-[1000] max-w-[220px] sm:max-w-xs w-full top-3 left-3">
+          <div className="relative">
+            <div className="glass-dark border border-emerald-500/30 rounded-2xl p-1.5 flex items-center gap-2 shadow-2xl">
+              <Search className="w-4 h-4 text-emerald-400 ml-1.5 shrink-0" />
+              <input
+                type="text"
+                placeholder="Cari lokasi atau alamat..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full placeholder:text-zinc-400"
+              />
+              {isSearching && (
+                <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mr-1 shrink-0"></div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Map Control Bar Top Floating */}
-      <div className="absolute top-3 right-3 z-[1000] flex items-center gap-2">
-        {/* Toggle Satellite vs Street Map */}
-        <button
-          type="button"
-          onClick={() => setMapTileMode(mapTileMode === 'satellite' ? 'street' : 'satellite')}
-          className="glass-dark hover:bg-zinc-800/90 text-white text-xs font-extrabold px-3 py-1.5 rounded-full shadow-xl flex items-center gap-1.5 cursor-pointer transition-all border border-emerald-500/30"
-          title="Ubah Tampilan Peta"
-        >
-          <Layers className="w-3.5 h-3.5 text-emerald-400" />
-          {mapTileMode === 'satellite' ? '🛰️ Satelit + Jalan' : '🗺️ Peta Standard'}
-        </button>
-
-        {/* Reset Camera Center Button */}
-        <button
-          type="button"
-          onClick={() => triggerResetRef.current && triggerResetRef.current()}
-          className="glass-dark hover:bg-zinc-800/90 text-white text-xs font-extrabold px-3 py-1.5 rounded-full shadow-xl flex items-center gap-1.5 cursor-pointer transition-all border border-emerald-500/30"
-          title="Reset Kamera Ke Rute / Tengah Desa"
-        >
-          <Target className="w-3.5 h-3.5 text-emerald-400" />
-          Fokus Rute
-        </button>
-      </div>
-
-      {/* Selection Mode Banner */}
-      {selectionMode && (
-        <div className="absolute top-14 left-3 sm:top-3 sm:left-1/2 sm:-translate-x-1/2 z-[1000] animate-slide-down">
-          <div className="glass-dark px-4 py-2 rounded-full shadow-xl flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
-            </span>
-            <span className="text-white text-xs font-bold whitespace-nowrap">
-              Geser &amp; klik peta untuk {selectionMode === 'pickup' ? 'Titik Penjemputan' : 'Titik Tujuan'}
-            </span>
+            {searchResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-zinc-900/95 backdrop-blur-md border border-zinc-700/80 rounded-2xl p-2 shadow-2xl space-y-1 max-h-56 overflow-y-auto z-[1010]">
+                {searchResults.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectSearchResult(item)}
+                    className="w-full text-left p-2 rounded-xl hover:bg-zinc-800 transition-colors flex items-start gap-2 group cursor-pointer"
+                  >
+                    <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h5 className="font-bold text-xs text-white group-hover:text-emerald-400 transition-colors line-clamp-1">{item.name}</h5>
+                      <p className="text-[10px] text-zinc-400 line-clamp-1">{item.address}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Dead-Reckoning Battery Saver Indicator */}
-      <div className="absolute bottom-3 left-3 z-[1000] pointer-events-none">
-        <div className="bg-zinc-900/90 backdrop-blur-md text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded-full border border-emerald-500/30 shadow-lg flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Dead-Reckoning Live Tracking (Ping 60s &bull; Smooth 60FPS)</span>
+      {/* Map Control Bar Top Floating (Hidden in Historical View) */}
+      {!isHistoricalView && (
+        <div className={`absolute z-[1000] flex items-center gap-1.5 transition-all ${
+          selectionMode ? 'top-16 right-3' : 'top-3 right-3'
+        }`}>
+          {/* Toggle Satellite vs Street Map */}
+          <button
+            type="button"
+            onClick={() => setMapTileMode(mapTileMode === 'satellite' ? 'street' : 'satellite')}
+            className={`glass-dark hover:bg-zinc-800/90 text-white px-2.5 h-9 rounded-2xl shadow-xl flex items-center gap-1.5 cursor-pointer transition-all border ${
+              mapTileMode === 'satellite' ? 'border-amber-400/60 bg-amber-950/60' : 'border-emerald-500/30'
+            } active:scale-95`}
+            title={mapTileMode === 'satellite' ? 'Ubah ke Mode Peta Street/Jalan' : 'Ubah ke Mode Peta Satelit'}
+          >
+            <Layers className={`w-4 h-4 ${mapTileMode === 'satellite' ? 'text-amber-400' : 'text-emerald-400'}`} />
+            <span className="text-[10px] font-extrabold uppercase text-white">
+              {mapTileMode === 'satellite' ? 'Satelit' : 'Street'}
+            </span>
+          </button>
+
+          {/* Live User GPS Location Lock Button */}
+          <button
+            type="button"
+            onClick={() => triggerFocusUserLocationRef.current && triggerFocusUserLocationRef.current()}
+            className="glass-dark hover:bg-zinc-800/90 text-white w-9 h-9 rounded-2xl shadow-xl flex items-center justify-center cursor-pointer transition-all border border-emerald-500/30 active:scale-95"
+            title="Fokus Kamera Ke Lokasi Saya (Live GPS)"
+          >
+            <Compass className="w-4 h-4 text-emerald-400" />
+          </button>
+
+          {/* Reset Camera Center Button */}
+          <button
+            type="button"
+            onClick={() => triggerResetRef.current && triggerResetRef.current()}
+            className="glass-dark hover:bg-zinc-800/90 text-white w-9 h-9 rounded-2xl shadow-xl flex items-center justify-center cursor-pointer transition-all border border-emerald-500/30 active:scale-95"
+            title="Fokus Kamera Ke Rute Perjalanan"
+          >
+            <Target className="w-4 h-4 text-emerald-400" />
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* Status Badge Indicator (Hidden in Selection Mode to avoid bottom sheet overlap) */}
+      {!isHistoricalView && !selectionMode && (
+        <div className="absolute bottom-3 left-3 z-[1000] pointer-events-none">
+          <div className="bg-zinc-900/90 backdrop-blur-md text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded-full border border-emerald-500/30 shadow-lg flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Live Tracking GPS (Ping 60s)</span>
+          </div>
+        </div>
+      )}
 
       {mapLoaded && L ? (
         <LeafletMapView
@@ -187,7 +208,10 @@ export default function MapComponent({
           zoom={zoom}
           center={center}
           tileMode={mapTileMode}
+          isHistoricalView={isHistoricalView}
+          forceStreetMode={forceStreetMode}
           onRegisterReset={(resetFn) => (triggerResetRef.current = resetFn)}
+          onRegisterFocusUserLocation={(focusFn) => (triggerFocusUserLocationRef.current = focusFn)}
         />
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900 text-zinc-400 gap-3">
@@ -217,7 +241,9 @@ function LeafletMapView({
   zoom,
   center,
   tileMode,
-  onRegisterReset
+  isHistoricalView,
+  onRegisterReset,
+  onRegisterFocusUserLocation
 }: {
   L: any;
   stores: Store[];
@@ -233,18 +259,34 @@ function LeafletMapView({
   zoom: number;
   center: { lat: number; lng: number };
   tileMode: 'satellite' | 'street';
+  isHistoricalView?: boolean;
+  forceStreetMode?: boolean;
   onRegisterReset: (fn: () => void) => void;
+  onRegisterFocusUserLocation: (fn: () => void) => void;
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletInstance = useRef<any>(null);
   const layerGroupRef = useRef<any>(null);
   const baseTileLayerRef = useRef<any>(null);
   const roadOverlayLayerRef = useRef<any>(null);
+  const labelOverlayLayerRef = useRef<any>(null);
   const clickHandlerRef = useRef<any>(null);
   const animFrameRef = useRef<number | null>(null);
 
   const lastRouteKeyRef = useRef<string>('');
   const userHasInteractedRef = useRef<boolean>(false);
+
+  const driversRef = useRef(drivers);
+  const centerRef = useRef(center);
+  const pickupLocationRef = useRef(pickupLocation);
+  const destLocationRef = useRef(destLocation);
+
+  useEffect(() => {
+    driversRef.current = drivers;
+    centerRef.current = center;
+    pickupLocationRef.current = pickupLocation;
+    destLocationRef.current = destLocation;
+  }, [drivers, center, pickupLocation, destLocation]);
 
   // Initialize map once safely
   useEffect(() => {
@@ -273,16 +315,75 @@ function LeafletMapView({
     leafletInstance.current = map;
     layerGroupRef.current = layerGroup;
 
-    // Register reset function
+    // Auto-center map on load: Prioritize Driver location if in Driver Mode, otherwise safeLat/safeLng
+    if (drivers && drivers.length > 0 && typeof drivers[0].lat === 'number' && typeof drivers[0].lng === 'number') {
+      map.setView([drivers[0].lat, drivers[0].lng], 17);
+    } else if (typeof window !== 'undefined' && 'geolocation' in navigator && !pickupLocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (leafletInstance.current && !userHasInteractedRef.current && !pickupLocation && (!drivers || drivers.length === 0)) {
+            const { latitude, longitude } = pos.coords;
+            leafletInstance.current.setView([latitude, longitude], 17, { animate: true });
+          }
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+      );
+    }
+
+    // Register reset function (Uses dynamic refs to avoid stale closures)
     onRegisterReset(() => {
       userHasInteractedRef.current = false;
-      if (pickupLocation && destLocation) {
-        map.fitBounds(
-          [[pickupLocation.lat, pickupLocation.lng], [destLocation.lat, destLocation.lng]],
+      if (!leafletInstance.current) return;
+
+      const curDrivers = driversRef.current;
+      const curCenter = centerRef.current;
+      const curPickup = pickupLocationRef.current;
+      const curDest = destLocationRef.current;
+
+      if (curDrivers && curDrivers.length > 0 && typeof curDrivers[0].lat === 'number' && typeof curDrivers[0].lng === 'number') {
+        leafletInstance.current.setView([curDrivers[0].lat, curDrivers[0].lng], 17, { animate: true });
+      } else if (curPickup && curDest) {
+        leafletInstance.current.fitBounds(
+          [[curPickup.lat, curPickup.lng], [curDest.lat, curDest.lng]],
           { padding: [50, 50] }
         );
-      } else {
-        map.setView([safeLat, safeLng], 16);
+      } else if (curCenter && typeof curCenter.lat === 'number') {
+        leafletInstance.current.setView([curCenter.lat, curCenter.lng], 17, { animate: true });
+      }
+    });
+
+    // Register focus user location callback (Uses dynamic refs for 100% accurate driver focus)
+    onRegisterFocusUserLocation(() => {
+      userHasInteractedRef.current = false;
+
+      if (!leafletInstance.current) return;
+
+      const curDrivers = driversRef.current;
+      const curCenter = centerRef.current;
+
+      // 1. Prioritize Driver Pin Position
+      if (curDrivers && curDrivers.length > 0 && typeof curDrivers[0].lat === 'number' && typeof curDrivers[0].lng === 'number') {
+        leafletInstance.current.setView([curDrivers[0].lat, curDrivers[0].lng], 17, { animate: true });
+        return;
+      }
+
+      // 2. Prioritize explicitly passed center prop
+      if (curCenter && typeof curCenter.lat === 'number') {
+        leafletInstance.current.setView([curCenter.lat, curCenter.lng], 17, { animate: true });
+        return;
+      }
+
+      // 3. Device Geolocation fallback for buyer mode
+      if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            leafletInstance.current?.setView([latitude, longitude], 17, { animate: true });
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+        );
       }
     });
 
@@ -293,6 +394,16 @@ function LeafletMapView({
     };
   }, []);
 
+  // Dynamically re-center map when center prop updates
+  useEffect(() => {
+    if (leafletInstance.current && center && typeof center.lat === 'number' && typeof center.lng === 'number') {
+      // Always re-center in selection mode (fullscreen picker), otherwise respect user interaction
+      if (selectionMode || !userHasInteractedRef.current) {
+        leafletInstance.current.setView([center.lat, center.lng], zoom || 16, { animate: true });
+      }
+    }
+  }, [center?.lat, center?.lng, zoom]);
+
   // Update Tile Layer (Satellite Hybrid vs Standard Street Map)
   useEffect(() => {
     const map = leafletInstance.current;
@@ -300,9 +411,10 @@ function LeafletMapView({
 
     if (baseTileLayerRef.current) map.removeLayer(baseTileLayerRef.current);
     if (roadOverlayLayerRef.current) map.removeLayer(roadOverlayLayerRef.current);
+    if (labelOverlayLayerRef.current) map.removeLayer(labelOverlayLayerRef.current);
 
     if (tileMode === 'satellite') {
-      // High Resolution Esri World Imagery Satellite
+      // 1. High Resolution Esri World Imagery Satellite Base
       baseTileLayerRef.current = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
@@ -311,10 +423,20 @@ function LeafletMapView({
         }
       ).addTo(map);
 
-      // Roads & Street Labels Overlay on Top of Satellite
+      // 2. Roads & Transportation Network Overlay
       roadOverlayLayerRef.current = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
         {
+          maxZoom: 19,
+          opacity: 0.95
+        }
+      ).addTo(map);
+
+      // 3. Street Names, Landmarks & Place Labels Overlay (Hybrid Satellite View)
+      labelOverlayLayerRef.current = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
+        {
+          attribution: '&copy; OpenStreetMap &bull; Maleber Street Labels',
           maxZoom: 19,
           opacity: 0.95
         }
@@ -436,59 +558,71 @@ function LeafletMapView({
       group.addLayer(marker);
     });
 
-    // 2. Dead-Reckoning Algorithmic Driver Motion
+    // 2. Dead-Reckoning Algorithmic Driver Motion (Skip in Historical View or Live Route Tracking to prevent double driver icons)
     const activeDriverMarkers: Map<string, any> = new Map();
+    const hasActiveRouteTracking = Boolean(pickupLocation && destLocation);
 
-    drivers.forEach((drv) => {
-      if (!drv.isOnline) return;
+    if (!isHistoricalView && !hasActiveRouteTracking) {
+      // Standby mode: Render online drivers near pickup location
+      const driversToRender = activeRouteStatus ? drivers.slice(0, 1) : drivers;
 
-      const driverIcon = L.divIcon({
-        className: 'custom-leaflet-marker',
-        html: `
-          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
-            <div style="position:absolute;width:44px;height:44px;border-radius:50%;border:2px solid #10b981;animation:pulse-ring 1.8s ease-out infinite;opacity:0.6;"></div>
-            <div style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:linear-gradient(135deg,#059669,#10b981);border-radius:50%;border:3px solid white;box-shadow:0 6px 20px rgba(16,185,129,0.4);font-size:18px;z-index:2;">
-              🛵
+      driversToRender.forEach((drv) => {
+        if (!drv.isOnline) return;
+
+        // Filter: only show online drivers within 1.5km (1500m) radius of pickup location when in pre-order mode
+        if (!activeRouteStatus && pickupLocation) {
+          const distM = getDistanceMeters(pickupLocation.lat, pickupLocation.lng, drv.lat, drv.lng);
+          if (distM > 1500) return;
+        }
+
+        const driverIcon = L.divIcon({
+          className: 'custom-leaflet-marker',
+          html: `
+            <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+              <div style="position:absolute;width:44px;height:44px;border-radius:50%;border:2px solid #10b981;animation:pulse-ring 1.8s ease-out infinite;opacity:0.6;"></div>
+              <div style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:linear-gradient(135deg,#059669,#10b981);border-radius:50%;border:3px solid white;box-shadow:0 6px 20px rgba(16,185,129,0.4);font-size:18px;z-index:2;">
+                🛵
+              </div>
+            </div>
+          `,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22]
+        });
+
+        const marker = L.marker([drv.lat, drv.lng], { icon: driverIcon });
+        marker.bindPopup(`
+          <div style="font-family:'Plus Jakarta Sans',system-ui;padding:4px;min-width:180px;">
+            <h4 style="font-weight:800;color:#047857;margin:0 0 4px;">${drv.name}</h4>
+            <p style="font-size:11px;margin:2px 0;color:#3f3f46;">${drv.vehicleModel} (${drv.vehicleNumber})</p>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+              <span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:3px 10px;border-radius:999px;">● Driver Maleber</span>
+              <span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:3px 10px;border-radius:999px;">⭐ ${drv.rating}</span>
             </div>
           </div>
-        `,
-        iconSize: [44, 44],
-        iconAnchor: [22, 22]
+        `);
+
+        group.addLayer(marker);
+        activeDriverMarkers.set(drv.id, { marker, baseLat: drv.lat, baseLng: drv.lng });
       });
 
-      const marker = L.marker([drv.lat, drv.lng], { icon: driverIcon });
-      marker.bindPopup(`
-        <div style="font-family:'Plus Jakarta Sans',system-ui;padding:4px;min-width:180px;">
-          <h4 style="font-weight:800;color:#047857;margin:0 0 4px;">${drv.name}</h4>
-          <p style="font-size:11px;margin:2px 0;color:#3f3f46;">${drv.vehicleModel} (${drv.vehicleNumber})</p>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-            <span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:3px 10px;border-radius:999px;">● Dead-Reckoning 60s Ping</span>
-            <span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:3px 10px;border-radius:999px;">⭐ ${drv.rating}</span>
-          </div>
-        </div>
-      `);
+      // Dead reckoning frame loop for smooth motion
+      let startTime = performance.now();
+      const animateDeadReckoning = (time: number) => {
+        const elapsed = (time - startTime) / 1000;
 
-      group.addLayer(marker);
-      activeDriverMarkers.set(drv.id, { marker, baseLat: drv.lat, baseLng: drv.lng });
-    });
+        activeDriverMarkers.forEach((item, id) => {
+          const radius = 0.0004; // ~40 meters micro patrol loop
+          const offsetLat = Math.sin(elapsed * 0.2 + id.length) * radius * 0.4;
+          const offsetLng = Math.cos(elapsed * 0.2 + id.length) * radius * 0.4;
 
-    // Dead reckoning frame loop for smooth motion
-    let startTime = performance.now();
-    const animateDeadReckoning = (time: number) => {
-      const elapsed = (time - startTime) / 1000;
+          item.marker.setLatLng([item.baseLat + offsetLat, item.baseLng + offsetLng]);
+        });
 
-      activeDriverMarkers.forEach((item, id) => {
-        const radius = 0.0004; // ~40 meters micro patrol loop
-        const offsetLat = Math.sin(elapsed * 0.2 + id.length) * radius * 0.4;
-        const offsetLng = Math.cos(elapsed * 0.2 + id.length) * radius * 0.4;
-
-        item.marker.setLatLng([item.baseLat + offsetLat, item.baseLng + offsetLng]);
-      });
+        animFrameRef.current = requestAnimationFrame(animateDeadReckoning);
+      };
 
       animFrameRef.current = requestAnimationFrame(animateDeadReckoning);
-    };
-
-    animFrameRef.current = requestAnimationFrame(animateDeadReckoning);
+    }
 
     // 3. Pickup Marker
     if (pickupLocation) {
@@ -540,81 +674,160 @@ function LeafletMapView({
       group.addLayer(marker);
     }
 
-    // 5. Turn-by-Turn Road Route Polyline via OSRM API
+    // 5. Solid Contrast Polyline with Gojek-style Progress Dimming, Map Matching, & Flicker-free Caching
     if (pickupLocation && destLocation) {
-      getOSRMRoute(
-        pickupLocation.lat,
-        pickupLocation.lng,
-        destLocation.lat,
-        destLocation.lng
-      ).then((routeRes) => {
+      const isPreOrderMode = !activeRouteStatus;
+      const activeDriver = (!isHistoricalView && !isPreOrderMode) ? drivers.find((d) => d.isOnline) : null;
+      const startLat = (isHistoricalView || isPreOrderMode) ? pickupLocation.lat : (activeDriver ? activeDriver.lat : pickupLocation.lat);
+      const startLng = (isHistoricalView || isPreOrderMode) ? pickupLocation.lng : (activeDriver ? activeDriver.lng : pickupLocation.lng);
+
+      const drawRouteOnGroup = (routeRes: any) => {
         const polylineCoords = routeRes.geometryCoordinates.length > 1
           ? routeRes.geometryCoordinates
-          : [[pickupLocation.lat, pickupLocation.lng], [destLocation.lat, destLocation.lng]];
+          : [[startLat, startLng], [destLocation.lat, destLocation.lng]];
         const roadDistStr = formatDistanceText(routeRes.distanceKm);
+        const etaMins = routeRes.durationMins || Math.max(1, Math.round(routeRes.distanceKm * 3));
 
-        // Shadow line following exact road curves
-        const shadowLine = L.polyline(polylineCoords, {
-          color: '#10b981',
-          weight: 8,
-          opacity: 0.2,
+        // Dark Solid Outline Border Line (Gojek Contrast Style)
+        const outlineLine = L.polyline(polylineCoords, {
+          color: '#022c22',
+          weight: 9,
+          opacity: 0.5,
           lineCap: 'round',
           lineJoin: 'round'
         });
-        group.addLayer(shadowLine);
+        group.addLayer(outlineLine);
 
-        // Main dashed line following exact road curves with Tooltip
-        const routeLine = L.polyline(polylineCoords, {
-          color: '#10b981',
-          weight: 5,
-          dashArray: '10, 8',
-          opacity: 0.95,
-          lineCap: 'round',
-          lineJoin: 'round'
+        if (isHistoricalView) {
+          // STATIC HISTORICAL VIEW: Lock map interactions & draw single solid completed route line
+          const solidHistoricalLine = L.polyline(polylineCoords, {
+            color: '#10b981',
+            weight: 8,
+            opacity: 1.0,
+            lineCap: 'round',
+            lineJoin: 'round'
+          });
+
+          group.addLayer(solidHistoricalLine);
+
+          // Delayed fitBounds and invalidateSize to ensure modal rendering is finished & camera centered
+          setTimeout(() => {
+            if (map && map._container && map._leaflet_id) {
+              try {
+                map.invalidateSize();
+                const bounds = L.latLngBounds(polylineCoords);
+                map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+              } catch (err) {
+                // Safely handle unmounted DOM container cleanup
+              }
+            }
+          }, 150);
+
+          // Disable dragging/zooming for static snapshot effect
+          map.dragging.disable();
+          map.touchZoom.disable();
+          map.doubleClickZoom.disable();
+          map.scrollWheelZoom.disable();
+          map.boxZoom.disable();
+        } else {
+          // LIVE ACTIVE VIEW: Map Matching & Progress Splitting
+          let splitIndex = 0;
+          let driverSnappedCoord: [number, number] | null = null;
+
+          if (activeDriver) {
+            const snap = snapPointToPolyline([activeDriver.lat, activeDriver.lng], polylineCoords as [number, number][]);
+            driverSnappedCoord = snap.snapped;
+            splitIndex = snap.index;
+          } else if (driverProgress && driverProgress > 0) {
+            splitIndex = Math.floor((driverProgress / 100) * (polylineCoords.length - 1));
+          }
+
+          if (splitIndex > 0 && splitIndex < polylineCoords.length) {
+            // Passed Route (Greyed Out / Dimmed behind driver)
+            const passedCoords = polylineCoords.slice(0, splitIndex + 1);
+            if (driverSnappedCoord) passedCoords[passedCoords.length - 1] = driverSnappedCoord;
+
+            const passedLine = L.polyline(passedCoords, {
+              color: '#94a3b8',
+              weight: 6,
+              opacity: 0.6,
+              lineCap: 'round',
+              lineJoin: 'round'
+            });
+            group.addLayer(passedLine);
+
+            // Remaining Route (Vibrant Solid Emerald Green ahead of driver)
+            const remainingCoords = polylineCoords.slice(splitIndex);
+            if (driverSnappedCoord) remainingCoords[0] = driverSnappedCoord;
+
+            const remainingLine = L.polyline(remainingCoords, {
+              color: '#059669',
+              weight: 6,
+              opacity: 1.0,
+              lineCap: 'round',
+              lineJoin: 'round'
+            });
+
+            group.addLayer(remainingLine);
+          } else {
+            // Entire Solid Vibrant Route Line
+            const mainRouteLine = L.polyline(polylineCoords, {
+              color: '#059669',
+              weight: 6,
+              opacity: 1.0,
+              lineCap: 'round',
+              lineJoin: 'round'
+            });
+
+            group.addLayer(mainRouteLine);
+          }
+
+          // Render Snapped Driver Marker directly ON Polyline in Live View
+          if (activeDriver && driverSnappedCoord) {
+            const snappedDriverIcon = L.divIcon({
+              className: 'custom-leaflet-marker',
+              html: `
+                <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+                  <div style="position:absolute;width:48px;height:48px;border-radius:50%;border:2.5px solid #059669;animation:pulse-ring 1.2s ease-out infinite;"></div>
+                  <div style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;background:linear-gradient(135deg,#059669,#10b981);border-radius:50%;border:3px solid white;box-shadow:0 6px 24px rgba(5,150,105,0.5);font-size:20px;z-index:3;">
+                    🛵
+                  </div>
+                </div>
+              `,
+              iconSize: [48, 48],
+              iconAnchor: [24, 24]
+            });
+
+            L.marker(driverSnappedCoord, { icon: snappedDriverIcon })
+              .bindPopup(`<div style="font-family:system-ui;text-align:center;font-size:12px;"><b>${activeDriver.name}</b><br/>Estimasi Tiba: ~${etaMins} Menit</div>`)
+              .addTo(group);
+          }
+        }
+      };
+
+      const routeKey = `${startLat.toFixed(4)},${startLng.toFixed(4)}-${destLocation.lat.toFixed(4)},${destLocation.lng.toFixed(4)}`;
+      if (globalOsrmCache.has(routeKey)) {
+        // Synchronous immediate draw to eliminate route flickering
+        drawRouteOnGroup(globalOsrmCache.get(routeKey));
+      } else {
+        getOSRMRoute(startLat, startLng, destLocation.lat, destLocation.lng).then((routeRes) => {
+          globalOsrmCache.set(routeKey, routeRes);
+          drawRouteOnGroup(routeRes);
         });
-
-        routeLine.bindTooltip(`📍 Jarak Rute Jalan: <b>${roadDistStr}</b>`, {
-          permanent: true,
-          direction: 'center',
-          className: 'glass-dark text-white font-extrabold text-[11px] px-2.5 py-1 rounded-xl shadow-lg border border-emerald-500/30'
-        });
-
-        group.addLayer(routeLine);
-      });
-
-      // Animated moving driver marker along route
-      if (driverProgress && driverProgress > 0) {
-        const progress = Math.min(driverProgress / 100, 1);
-        const lat = pickupLocation.lat + (destLocation.lat - pickupLocation.lat) * progress;
-        const lng = pickupLocation.lng + (destLocation.lng - pickupLocation.lng) * progress;
-
-        const movingDriverIcon = L.divIcon({
-          className: 'custom-leaflet-marker',
-          html: `
-            <div style="position:relative;display:flex;align-items:center;justify-content:center;">
-              <div style="position:absolute;width:48px;height:48px;border-radius:50%;border:2px solid #f59e0b;animation:pulse-ring 1.2s ease-out infinite;"></div>
-              <div style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;background:linear-gradient(135deg,#f59e0b,#f97316);border-radius:50%;border:3px solid white;box-shadow:0 6px 24px rgba(245,158,11,0.5);font-size:20px;z-index:3;">
-                🛵
-              </div>
-            </div>
-          `,
-          iconSize: [48, 48],
-          iconAnchor: [24, 24]
-        });
-
-        L.marker([lat, lng], { icon: movingDriverIcon })
-          .bindPopup(`<div style="font-family:system-ui;text-align:center;font-size:12px;"><b>Driver Sedang Menuju</b><br/>${driverProgress}% perjalanan</div>`)
-          .addTo(group);
       }
 
       // ONLY fitBounds ONCE when route location actually changes and user hasn't manually panned
       const newRouteKey = `${pickupLocation.lat.toFixed(5)},${pickupLocation.lng.toFixed(5)}-${destLocation.lat.toFixed(5)},${destLocation.lng.toFixed(5)}`;
-      if (newRouteKey !== lastRouteKeyRef.current && !userHasInteractedRef.current) {
-        lastRouteKeyRef.current = newRouteKey;
-        map.fitBounds(
-          [[pickupLocation.lat, pickupLocation.lng], [destLocation.lat, destLocation.lng]],
-          { padding: [50, 50] }
-        );
+      if (newRouteKey !== lastRouteKeyRef.current && !userHasInteractedRef.current && map && map._container && map._leaflet_id) {
+        try {
+          lastRouteKeyRef.current = newRouteKey;
+          map.fitBounds(
+            [[pickupLocation.lat, pickupLocation.lng], [destLocation.lat, destLocation.lng]],
+            { padding: [50, 50] }
+          );
+        } catch (err) {
+          // Safe catch for unmounted Leaflet container
+        }
       }
     }
 

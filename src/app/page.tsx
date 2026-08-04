@@ -30,7 +30,6 @@ import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 export default function Home() {
   const [isLandingActive, setIsLandingActive] = useState(true);
   const [currentRole, setCurrentRole] = useState<UserRole>('buyer');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   // Selected Product for Dedicated Product Detail Page
   const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(null);
@@ -47,21 +46,39 @@ export default function Home() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Theme state defaulting to OS system preference
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+
+  useEffect(() => {
+    // Check if user has saved theme preference in localStorage or match system device
+    const savedTheme = localStorage.getItem('maleber_theme') as 'dark' | 'light' | null;
+    let initialTheme: 'dark' | 'light' = 'light';
+
+    if (savedTheme) {
+      initialTheme = savedTheme;
+    } else if (typeof window !== 'undefined' && window.matchMedia) {
+      initialTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    setTheme(initialTheme);
+    if (initialTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
   // Toggle Dark/Light Theme
   const handleToggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
+    localStorage.setItem('maleber_theme', nextTheme);
     if (nextTheme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
   };
-
-  useEffect(() => {
-    // Default to dark theme for rich aesthetics
-    document.documentElement.classList.add('dark');
-  }, []);
 
   // Application Data State (Will be loaded from Supabase PostgreSQL live)
   const [stores, setStores] = useState<Store[]>(INITIAL_STORES);
@@ -88,12 +105,39 @@ export default function Home() {
       const res = await fetch('/api/db');
       const data = await res.json();
       if (data.success) {
-        if (data.stores && data.stores.length > 0) setStores(data.stores);
+        const currentReviews: Review[] = data.reviews || [];
+        if (data.reviews && data.reviews.length > 0) setReviews(data.reviews);
+
+        if (data.drivers && data.drivers.length > 0) {
+          const updatedDrivers = data.drivers.map((drv: DriverInfo) => {
+            const driverRevs = currentReviews.filter(
+              (r: Review) => (r.targetId === drv.id || r.targetId === drv.name) && r.targetType === 'driver'
+            );
+            if (driverRevs.length > 0) {
+              const avg = driverRevs.reduce((sum: number, r: Review) => sum + r.rating, 0) / driverRevs.length;
+              return { ...drv, rating: Math.round(avg * 10) / 10, reviewCount: driverRevs.length };
+            }
+            return { ...drv, reviewCount: drv.reviewCount || 0 };
+          });
+          setDrivers(updatedDrivers);
+        }
+
+        if (data.stores && data.stores.length > 0) {
+          const updatedStores = data.stores.map((st: Store) => {
+            const storeRevs = currentReviews.filter(
+              (r: Review) => r.targetId === st.id && r.targetType === 'store'
+            );
+            if (storeRevs.length > 0) {
+              const avg = storeRevs.reduce((sum: number, r: Review) => sum + r.rating, 0) / storeRevs.length;
+              return { ...st, rating: Math.round(avg * 10) / 10, reviewCount: storeRevs.length };
+            }
+            return { ...st, rating: 5.0, reviewCount: 0 };
+          });
+          setStores(updatedStores);
+        }
         if (data.products && data.products.length > 0) setProducts(data.products);
-        if (data.drivers && data.drivers.length > 0) setDrivers(data.drivers);
         if (data.orders) setOrders(data.orders);
         if (data.rides) setRides(data.rides);
-        if (data.reviews && data.reviews.length > 0) setReviews(data.reviews);
         if (data.messages) setMessages(data.messages);
       }
     } catch (err) {
@@ -187,17 +231,14 @@ export default function Home() {
   };
 
   // CART HANDLERS
-  const handleAddToCart = (product: Product, quantity = 1, notes?: string) => {
+  const handleAddToCart = (
+    product: Product,
+    quantity = 1,
+    notes?: string,
+    selectedVariants?: { groupName: string; optionName: string; extraPrice: number }[]
+  ) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id && item.notes === notes);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id && item.notes === notes
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [...prev, { product, quantity, notes }];
+      return [...prev, { product, quantity, notes, selectedVariants }];
     });
     addToast('success', 'Masuk Keranjang!', `${quantity}x ${product.name} telah ditambahkan.`);
   };
@@ -218,8 +259,13 @@ export default function Home() {
 
   const handleClearCart = () => setCart([]);
 
-  // CREATE FOOD ORDER (WRITES DIRECTLY TO SUPABASE POSTGRESQL ORDERS TABLE)
-  const handleCreateOrder = async (deliveryAddress: string, lat: number, lng: number) => {
+  const handleCreateOrder = async (
+    deliveryAddress: string,
+    lat: number,
+    lng: number,
+    paymentMethod: 'qris' | 'cod' = 'cod',
+    paymentStatus: 'paid' | 'unpaid' | 'cod' = 'cod'
+  ) => {
     if (cart.length === 0) return;
     const targetStoreId = cart[0].product.storeId;
     const targetStore = stores.find((s) => s.id === targetStoreId);
@@ -243,9 +289,11 @@ export default function Home() {
         quantity: c.quantity,
         notes: c.notes
       })),
-      totalAmount: subtotal + 5000,
+      totalAmount: subtotal + 5000 + 2000,
       deliveryFee: 5000,
       status: 'pending',
+      paymentMethod,
+      paymentStatus,
       deliveryAddress,
       lat,
       lng,
@@ -282,17 +330,12 @@ export default function Home() {
 
     // Write row directly into Supabase PostgreSQL orders table
     try {
-      const res = await fetch('/api/db', {
+      await fetch('/api/db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create_order', data: newOrder })
       });
-      const resData = await res.json();
-      if (resData.success) {
-        addToast('success', 'Pesanan Berhasil Dikirim! 🍽️', `Toko ${newOrder.storeName} telah menerima pesanan Anda.`);
-      } else {
-        addToast('success', 'Pesanan Berhasil Dikirim! 🍽️', `Toko ${newOrder.storeName} telah menerima pesanan Anda.`);
-      }
+      addToast('success', paymentMethod === 'qris' ? 'Pembayaran QRIS Lunas! 💳' : 'Pesanan Berhasil Dikirim! 🍽️', `Toko ${newOrder.storeName} telah menerima pesanan Anda.`);
     } catch (e) {
       console.error('Order post error:', e);
       addToast('success', 'Pesanan Makanan Dikirim!', `Toko ${newOrder.storeName} telah menerima pesanan Anda.`);
@@ -308,7 +351,9 @@ export default function Home() {
     destLat: number,
     destLng: number,
     distanceKm: number,
-    fare: number
+    fare: number,
+    paymentMethod: 'qris' | 'cod' = 'cod',
+    paymentStatus: 'paid' | 'unpaid' | 'cod' = 'cod'
   ) => {
     const rideId = `20000000-${Date.now().toString().slice(-4)}-4000-8000-${Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0')}`;
 
@@ -326,23 +371,20 @@ export default function Home() {
       distanceKm,
       fare,
       status: 'requested',
+      paymentMethod,
+      paymentStatus,
       createdAt: new Date().toISOString()
     };
 
     setRides((prev) => [newRide, ...prev]);
 
     try {
-      const res = await fetch('/api/db', {
+      await fetch('/api/db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create_ride', data: newRide })
       });
-      const resData = await res.json();
-      if (resData.success) {
-        addToast('success', 'Ojek Berhasil Dipesan! 🛵', `Tarif: Rp ${fare.toLocaleString('id-ID')}. Mencari driver terdekat...`);
-      } else {
-        addToast('success', 'Ojek Berhasil Dipesan! 🛵', `Tarif: Rp ${fare.toLocaleString('id-ID')}. Mencari driver terdekat...`);
-      }
+      addToast('success', paymentMethod === 'qris' ? 'Ojek Dibayar Via QRIS! 💳' : 'Ojek Berhasil Dipesan! 🛵', `Tarif: Rp ${fare.toLocaleString('id-ID')}. Mencari driver terdekat...`);
     } catch (e) {
       addToast('success', 'Ojek Berhasil Dipesan! 🛵', `Tarif: Rp ${fare.toLocaleString('id-ID')}. Mencari driver terdekat...`);
     }
@@ -537,6 +579,7 @@ export default function Home() {
     senderRole: UserRole;
     receiverId: string;
     receiverName: string;
+    receiverRole?: UserRole;
     message: string;
   }) => {
     const newMsg: ChatMessage = {
@@ -722,16 +765,30 @@ export default function Home() {
                 onCancelOrder={handleCancelOrder}
                 onCancelRide={handleCancelRide}
                 onOpenChat={handleOpenChat}
+                currentUser={currentUser}
               />
             )}
 
             {currentRole === 'seller' && (() => {
               const activeStore: Store = (currentUser && stores.find((s) => 
                 s.ownerId === currentUser.id || 
-                (currentUser.storeName && s.name.toLowerCase().includes(currentUser.storeName.toLowerCase())) || 
-                s.ownerName.toLowerCase().includes(currentUser.name.toLowerCase().split(' ')[0]) ||
-                currentUser.name.toLowerCase().includes(s.ownerName.toLowerCase().split(' ')[0])
-              )) || stores[0];
+                (s.phone && currentUser.phone && s.phone.replace(/[^0-9]/g, '') === currentUser.phone.replace(/[^0-9]/g, ''))
+              )) || {
+                id: `store-${currentUser?.id || Date.now()}`,
+                name: currentUser?.storeName || `Toko UMKM ${currentUser?.name || 'Warga Maleber'}`,
+                category: 'Toko Kelontong',
+                ownerName: currentUser?.name || 'Pemilik Toko',
+                ownerId: currentUser?.id,
+                phone: currentUser?.phone || '081234567890',
+                address: 'Jl. Raya Maleber No. 12, Kuningan',
+                lat: -6.8175,
+                lng: 107.1878,
+                isActive: true,
+                image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
+                description: 'Toko UMKM Resmi Desa Maleber',
+                rating: 5.0,
+                reviewCount: 0
+              };
               return (
                 <SellerMode
                   store={activeStore}
@@ -743,6 +800,17 @@ export default function Home() {
                   onToggleProductAvailability={handleToggleProductAvailability}
                   onSelectProduct={(p) => setSelectedProductDetail(p)}
                   onOpenChat={handleOpenChat}
+                  onToggleStoreStatus={(storeId, isActive) => {
+                    setStores((prev) =>
+                      prev.map((s) => (s.id === storeId ? { ...s, isActive } : s))
+                    );
+                    fetch('/api/db', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'update_store_status', data: { id: storeId, isActive } })
+                    }).catch(() => {});
+                    addToast('info', isActive ? 'Toko Berhasil DIBUKA 🟢' : 'Toko Berhasil DITUTUP 🔴', `Status toko Anda di Marketplace Maleber telah diubah.`);
+                  }}
                 />
               );
             })()}
@@ -750,19 +818,18 @@ export default function Home() {
             {currentRole === 'driver' && (() => {
               const activeDriver: DriverInfo = (currentUser && drivers.find((d) => 
                 d.id === currentUser.id || 
-                d.name.toLowerCase().includes(currentUser.name.toLowerCase().split(' ')[1]?.toLowerCase() || 'xyz') ||
-                currentUser.name.toLowerCase().includes(d.name.toLowerCase().split(' ')[1]?.toLowerCase() || 'xyz')
+                (d.phone && currentUser.phone && d.phone.replace(/[^0-9]/g, '') === currentUser.phone.replace(/[^0-9]/g, ''))
               )) || {
-                id: currentUser?.id || 'c2222222-2222-4222-8222-222222222222',
-                name: currentUser?.name || 'Kang Dede Ojek Desa',
-                vehicleModel: currentUser?.vehicleInfo || 'Yamaha NMAX 155',
-                vehicleNumber: 'F 3312 WX',
-                phone: currentUser?.phone || '082198765433',
+                id: currentUser?.id || `driver-${Date.now()}`,
+                name: currentUser?.name || 'Mitra Driver Maleber',
+                vehicleModel: currentUser?.vehicleInfo || 'Motor Vario 125',
+                vehicleNumber: 'E 4512 YZ',
+                phone: currentUser?.phone || '081234567890',
                 isOnline: true,
                 lat: -6.8170,
                 lng: 107.1880,
-                rating: currentUser?.rating || 4.90,
-                reviewCount: 64
+                rating: 5.0,
+                reviewCount: 0
               };
               return (
                 <DriverMode

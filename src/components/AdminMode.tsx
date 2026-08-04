@@ -5,6 +5,7 @@ import { Store, DriverInfo, Order, RideRequest, UserRole, PlacePOI } from '@/typ
 import MapComponent from './MapComponent';
 import { INITIAL_PLACES } from '@/lib/mockData';
 import { ShieldCheck, Store as StoreIcon, Bike, Users, FileText, CheckCircle2, TrendingUp, Layers, Plus, UserCheck, ShieldAlert, X, Building2, Crown, Lock, UserPlus, Key, Eye, Radio, Activity, MapPin, Sparkles } from 'lucide-react';
+import { calculateOrderFees, calculateRideFees, SELLER_COMMISSION_RATE, DRIVER_COMMISSION_RATE, BUYER_APP_FEE, formatRupiah } from '@/lib/feeCalculator';
 
 interface AdminModeProps {
   stores: Store[];
@@ -28,6 +29,10 @@ export default function AdminMode({
   onSwitchRoleView
 }: AdminModeProps) {
   const [activeAdminTab, setActiveAdminTab] = useState<'live' | 'verifikasi' | 'superadmin'>('live');
+  const [selectedAdminDetail, setSelectedAdminDetail] = useState<{
+    type: 'order' | 'ride';
+    data: Order | RideRequest;
+  } | null>(null);
   
   // Modals
   const [showAddStoreModal, setShowAddStoreModal] = useState(false);
@@ -65,6 +70,23 @@ export default function AdminMode({
   const activeRidesCount = rides.filter((r) => r.status !== 'completed' && r.status !== 'cancelled').length;
   const activeOrdersCount = orders.filter((o) => o.status !== 'completed' && o.status !== 'cancelled').length;
   const onlineDriversCount = drivers.filter((d) => d.isOnline).length;
+
+  // Platform Revenue Calculation (total pendapatan platform dari semua sumber)
+  const completedOrders = orders.filter(o => o.status === 'completed');
+  const completedRides = rides.filter(r => r.status === 'completed');
+
+  const platformRevenueFromOrders = completedOrders.reduce((acc, ord) => {
+    const productSubtotal = ord.totalAmount - (ord.deliveryFee || 5000);
+    const fees = calculateOrderFees(productSubtotal, ord.deliveryFee || 5000);
+    return acc + fees.platformRevenue;
+  }, 0);
+
+  const platformRevenueFromRides = completedRides.reduce((acc, ride) => {
+    const fees = calculateRideFees(ride.fare);
+    return acc + fees.platformRevenue;
+  }, 0);
+
+  const totalPlatformRevenue = platformRevenueFromOrders + platformRevenueFromRides;
 
   const handleCreateStore = (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,8 +282,38 @@ export default function AdminMode({
                 <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
               </div>
               <h4 className="text-base sm:text-2xl font-black text-zinc-900 dark:text-white truncate">
-                Rp {totalVolume.toLocaleString('id-ID')}
+                {formatRupiah(totalVolume)}
               </h4>
+            </div>
+          </div>
+
+          {/* Platform Revenue Card */}
+          <div className="bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-lg shadow-purple-600/20 text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-purple-200">💰 Total Pendapatan Platform Maleber</p>
+                <h3 className="text-2xl sm:text-3xl font-black mt-1">{formatRupiah(totalPlatformRevenue)}</h3>
+                <p className="text-[10px] text-purple-200 mt-1">
+                  Dari {completedOrders.length} pesanan + {completedRides.length} ojek yang selesai
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-white/10 backdrop-blur px-3 py-2 rounded-xl">
+                  <p className="text-[10px] font-bold text-purple-200">Biaya Aplikasi</p>
+                  <p className="text-sm font-black">{formatRupiah((completedOrders.length + completedRides.length) * BUYER_APP_FEE)}</p>
+                </div>
+                <div className="bg-white/10 backdrop-blur px-3 py-2 rounded-xl">
+                  <p className="text-[10px] font-bold text-purple-200">Komisi Seller ({(SELLER_COMMISSION_RATE * 100).toFixed(0)}%)</p>
+                  <p className="text-sm font-black">{formatRupiah(completedOrders.reduce((a, o) => a + calculateOrderFees(o.totalAmount - (o.deliveryFee || 5000)).sellerCommission, 0))}</p>
+                </div>
+                <div className="bg-white/10 backdrop-blur px-3 py-2 rounded-xl">
+                  <p className="text-[10px] font-bold text-purple-200">Komisi Driver ({(DRIVER_COMMISSION_RATE * 100).toFixed(0)}%)</p>
+                  <p className="text-sm font-black">{formatRupiah(
+                    completedOrders.reduce((a, o) => a + calculateOrderFees(0, o.deliveryFee || 5000).driverCommission, 0) +
+                    completedRides.reduce((a, r) => a + calculateRideFees(r.fare).driverCommission, 0)
+                  )}</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -302,14 +354,18 @@ export default function AdminMode({
                 {[...rides]
                   .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                   .map((r) => (
-                    <div key={r.id} className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs">
+                    <div
+                      key={r.id}
+                      onClick={() => setSelectedAdminDetail({ type: 'ride', data: r })}
+                      className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs hover:border-emerald-500/50 transition-all cursor-pointer group"
+                    >
                       <div className="flex justify-between items-center">
                         <span className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-black px-2 py-0.5 rounded-md text-[10px]">
                           🛵 OJEK PENUMPANG
                         </span>
-                        <span className="text-zinc-400 text-[10px]">Baru Saja</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">Detail &rarr;</span>
                       </div>
-                      <p className="font-bold text-zinc-900 dark:text-white mt-1 leading-snug">
+                      <p className="font-bold text-zinc-900 dark:text-white mt-1 leading-snug group-hover:text-emerald-600 transition-colors">
                         {r.passengerName} memesan ojek ke {r.destAddress}
                       </p>
                       <span className="text-emerald-600 dark:text-emerald-400 font-bold block text-[11px]">Tarif: Rp {r.fare.toLocaleString('id-ID')}</span>
@@ -319,14 +375,18 @@ export default function AdminMode({
                 {[...orders]
                   .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                   .map((o) => (
-                  <div key={o.id} className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs">
+                  <div
+                    key={o.id}
+                    onClick={() => setSelectedAdminDetail({ type: 'order', data: o })}
+                    className="p-2.5 sm:p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl sm:rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-1 text-xs hover:border-amber-500/50 transition-all cursor-pointer group"
+                  >
                     <div className="flex justify-between items-center">
                       <span className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-black px-2 py-0.5 rounded-md text-[10px]">
                         🍲 KULINER UMKM
                       </span>
-                      <span className="text-zinc-400 text-[10px]">Baru Saja</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-bold text-[10px]">Detail &rarr;</span>
                     </div>
-                    <p className="font-bold text-zinc-900 dark:text-white mt-1 leading-snug">
+                    <p className="font-bold text-zinc-900 dark:text-white mt-1 leading-snug group-hover:text-amber-600 transition-colors">
                       {o.buyerName} memesan dari {o.storeName}
                     </p>
                     <span className="text-emerald-600 dark:text-emerald-400 font-bold block text-[11px]">Total: Rp {o.totalAmount.toLocaleString('id-ID')}</span>
@@ -811,6 +871,142 @@ export default function AdminMode({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN ORDER & RIDE DETAIL INSPECTOR MODAL */}
+      {selectedAdminDetail && (
+        <div
+          className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 modal-overlay"
+          onClick={() => setSelectedAdminDetail(null)}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 rounded-3xl max-w-2xl w-full p-4 sm:p-6 space-y-4 shadow-2xl border border-zinc-200 dark:border-zinc-800 modal-content relative max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950 text-amber-600 flex items-center justify-center font-bold text-lg">
+                  🛡️
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-zinc-900 dark:text-white">
+                    Inspeksi Admin - {selectedAdminDetail.type === 'order' ? 'Pesanan UMKM' : 'Layanan Ojek'}
+                  </h3>
+                  <p className="text-xs text-zinc-500 font-mono">ID Sistem: #{selectedAdminDetail.data.id}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAdminDetail(null)}
+                className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-bold flex items-center justify-center cursor-pointer hover:bg-zinc-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* LIVE TRACKING PETA */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  🗺️ Peta Inspeksi Rute Perjalanan Sistem
+                </span>
+                <span className="text-[10px] font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-2.5 py-0.5 rounded-full">
+                  ● Super Admin Audit
+                </span>
+              </div>
+
+              <div className="h-60 sm:h-72 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-inner">
+                <MapComponent
+                  pickupLocation={
+                    selectedAdminDetail.type === 'order'
+                      ? { lat: (selectedAdminDetail.data as Order).lat, lng: (selectedAdminDetail.data as Order).lng, address: (selectedAdminDetail.data as Order).storeName }
+                      : { lat: (selectedAdminDetail.data as RideRequest).pickupLat, lng: (selectedAdminDetail.data as RideRequest).pickupLng, address: (selectedAdminDetail.data as RideRequest).pickupAddress }
+                  }
+                  destLocation={
+                    selectedAdminDetail.type === 'order'
+                      ? { lat: (selectedAdminDetail.data as Order).lat - 0.0055, lng: (selectedAdminDetail.data as Order).lng + 0.0042, address: (selectedAdminDetail.data as Order).deliveryAddress }
+                      : { lat: (selectedAdminDetail.data as RideRequest).destLat, lng: (selectedAdminDetail.data as RideRequest).destLng, address: (selectedAdminDetail.data as RideRequest).destAddress }
+                  }
+                  drivers={drivers}
+                  stores={stores}
+                  isHistoricalView={selectedAdminDetail.data.status === 'completed' || selectedAdminDetail.data.status === 'cancelled'}
+                />
+              </div>
+            </div>
+
+            {/* DETAIL DATA HUKUM & TRANSAKSI */}
+            <div className="bg-zinc-50 dark:bg-zinc-800/60 p-4 rounded-2xl space-y-3 text-xs border border-zinc-200/60 dark:border-zinc-700/60">
+              <h4 className="font-extrabold text-xs text-zinc-900 dark:text-white uppercase tracking-wider">
+                📍 Pihak Terlibat &amp; Alamat Rute
+              </h4>
+
+              {selectedAdminDetail.type === 'order' ? (
+                <>
+                  <div className="flex justify-between items-center text-zinc-700 dark:text-zinc-300">
+                    <span>Pemesan (Warga):</span>
+                    <span className="font-bold">{(selectedAdminDetail.data as Order).buyerName} ({(selectedAdminDetail.data as Order).buyerPhone})</span>
+                  </div>
+                  <div className="flex justify-between items-center text-zinc-700 dark:text-zinc-300">
+                    <span>Toko UMKM:</span>
+                    <span className="font-bold">{(selectedAdminDetail.data as Order).storeName}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-zinc-700 dark:text-zinc-300">
+                    <span>Kurir Driver:</span>
+                    <span className="font-bold">{(selectedAdminDetail.data as Order).driverName || 'Belum diambil driver'}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center text-zinc-700 dark:text-zinc-300">
+                    <span>Penumpang Ojek:</span>
+                    <span className="font-bold">{(selectedAdminDetail.data as RideRequest).passengerName}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-zinc-700 dark:text-zinc-300">
+                    <span>Driver Ojek:</span>
+                    <span className="font-bold">{(selectedAdminDetail.data as RideRequest).driverName || 'Belum diambil driver'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-zinc-700 dark:text-zinc-300">
+                    <span>Jarak Tempuh:</span>
+                    <span className="font-bold">{(selectedAdminDetail.data as RideRequest).distanceKm} km</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* FINANCIAL AUDIT */}
+            <div className="bg-emerald-50 dark:bg-emerald-950/50 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-2 text-xs">
+              <h4 className="font-extrabold text-xs text-emerald-900 dark:text-emerald-200 uppercase tracking-wider mb-2">
+                💰 Audit Pembagian Alokasi Dana Sistem
+              </h4>
+
+              <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                <span>Nilai Transaksi Dasar:</span>
+                <span className="font-bold tabular-nums">
+                  Rp {(selectedAdminDetail.type === 'order'
+                    ? (selectedAdminDetail.data as Order).totalAmount
+                    : (selectedAdminDetail.data as RideRequest).fare
+                  ).toLocaleString('id-ID')}
+                </span>
+              </div>
+
+              <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                <span>Biaya Layanan Platform Kas Desa:</span>
+                <span className="font-bold tabular-nums">Rp 1.000</span>
+              </div>
+
+              <div className="flex justify-between text-base font-black text-emerald-900 dark:text-emerald-200 pt-2 border-t border-emerald-200 dark:border-emerald-800">
+                <span>Total Omzet Transaksi Masuk Sistem</span>
+                <span className="tabular-nums">
+                  Rp {(selectedAdminDetail.type === 'order'
+                    ? (selectedAdminDetail.data as Order).totalAmount + 1000
+                    : (selectedAdminDetail.data as RideRequest).fare + 1000
+                  ).toLocaleString('id-ID')}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}

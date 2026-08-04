@@ -42,8 +42,10 @@ export interface ChatMessage {
   senderRole: UserRole;
   receiverId: string;
   receiverName: string;
+  receiverRole?: UserRole;
   message: string;
   createdAt: string;
+  isRead?: boolean;
 }
 
 export interface Store {
@@ -63,6 +65,27 @@ export interface Store {
   description?: string;
 }
 
+export interface ProductVariantOption {
+  id: string;
+  name: string;
+  extraPrice: number;
+}
+
+export interface ProductVariantGroup {
+  id: string;
+  name: string;
+  required?: boolean;
+  minSelect?: number;
+  maxSelect?: number;
+  options: ProductVariantOption[];
+}
+
+export interface SelectedVariant {
+  groupName: string;
+  optionName: string;
+  extraPrice: number;
+}
+
 export interface Product {
   id: string;
   storeId: string;
@@ -77,12 +100,16 @@ export interface Product {
   unit?: string;
   rating?: number;
   salesCount?: number;
+  isPreOrder?: boolean;
+  preOrderDays?: number;
+  variantGroups?: ProductVariantGroup[];
 }
 
 export interface CartItem {
   product: Product;
   quantity: number;
   notes?: string;
+  selectedVariants?: SelectedVariant[];
 }
 
 export type OrderStatus = 'pending' | 'cooking' | 'ready_for_pickup' | 'delivering' | 'completed' | 'cancelled';
@@ -93,6 +120,7 @@ export interface OrderItem {
   price: number;
   quantity: number;
   notes?: string;
+  selectedVariants?: SelectedVariant[];
 }
 
 export interface Order {
@@ -109,6 +137,9 @@ export interface Order {
   totalAmount: number;
   deliveryFee: number;
   status: OrderStatus;
+  paymentMethod?: 'qris' | 'cod';
+  paymentStatus?: 'paid' | 'unpaid' | 'cod';
+  isPaid?: boolean;
   deliveryAddress: string;
   lat: number;
   lng: number;
@@ -137,6 +168,9 @@ export interface RideRequest {
   fare: number;
   distanceKm: number;
   status: RideStatus;
+  paymentMethod?: 'qris' | 'cod';
+  paymentStatus?: 'paid' | 'unpaid' | 'cod';
+  isPaid?: boolean;
   createdAt: string;
   progressPercent?: number;
   isRated?: boolean;

@@ -87,15 +87,33 @@ export async function POST(req: Request) {
       `;
     }
 
+    let recipient = to;
+    // Resend free tier test mode fallback to account owner email if unverified domain
     const data = await resend.emails.send({
       from: 'UMKM Maleber <onboarding@resend.dev>',
-      to: [to],
+      to: [recipient],
       subject: emailSubject,
       html: htmlContent
     });
 
     if (data.error) {
       console.error('Resend API Error:', data.error);
+      if (data.error.message?.includes('testing emails')) {
+        // Retry sending to verified account owner email so testing doesn't fail completely
+        const fallbackRes = await resend.emails.send({
+          from: 'UMKM Maleber <onboarding@resend.dev>',
+          to: ['mjlynsyh@gmail.com'],
+          subject: `[FORWARDED TO DEV] ${emailSubject} (Tujuan: ${to})`,
+          html: htmlContent
+        });
+        if (!fallbackRes.error) {
+          return NextResponse.json({
+            success: true,
+            data: fallbackRes.data,
+            notice: `[Mode Sandbox] Email OTP dikirim ke email pengembang (mjlynsyh@gmail.com) karena domain kustom Resend belum diverifikasi.`
+          });
+        }
+      }
       return NextResponse.json({ success: false, error: data.error.message }, { status: 400 });
     }
 

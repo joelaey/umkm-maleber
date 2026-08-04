@@ -9,6 +9,31 @@ function parseUuidOrNull(val: any) {
 
 export async function GET() {
   try {
+    // Ensure profiles table exists with password column
+    await queryDb(`
+      CREATE TABLE IF NOT EXISTS public.profiles (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT UNIQUE,
+        password TEXT,
+        role TEXT DEFAULT 'buyer',
+        avatar TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+      ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password TEXT;
+      ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'qris';
+      ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';
+      ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
+
+      ALTER TABLE public.ride_requests ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'qris';
+      ALTER TABLE public.ride_requests ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';
+      ALTER TABLE public.ride_requests ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
+
+      ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
+    `).catch((e) => console.error('Profiles & Orders table init notice:', e.message));
+
+    const profilesRes = await queryDb('SELECT * FROM public.profiles ORDER BY created_at DESC').catch(() => ({ rows: [] }));
     const storesRes = await queryDb('SELECT * FROM public.stores ORDER BY created_at DESC');
     const productsRes = await queryDb('SELECT * FROM public.products ORDER BY created_at DESC');
     const driversRes = await queryDb('SELECT * FROM public.driver_locations ORDER BY updated_at DESC');
@@ -16,6 +41,16 @@ export async function GET() {
     const ridesRes = await queryDb('SELECT * FROM public.ride_requests ORDER BY created_at DESC');
     const reviewsRes = await queryDb('SELECT * FROM public.reviews ORDER BY created_at DESC');
     const messagesRes = await queryDb('SELECT * FROM public.messages ORDER BY created_at ASC');
+
+    const users = profilesRes.rows.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      password: u.password,
+      role: u.role || 'buyer',
+      avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'
+    }));
 
     const stores = storesRes.rows.map((s) => ({
       id: s.id,
@@ -76,6 +111,9 @@ export async function GET() {
       totalAmount: Number(o.total_amount),
       deliveryFee: Number(o.delivery_fee) || 5000,
       status: o.status,
+      paymentMethod: o.payment_method || 'qris',
+      paymentStatus: o.payment_status || (o.is_paid ? 'paid' : 'unpaid'),
+      isPaid: o.is_paid ?? (o.payment_status === 'paid'),
       deliveryAddress: o.delivery_address,
       lat: Number(o.lat),
       lng: Number(o.lng),
@@ -98,6 +136,9 @@ export async function GET() {
       distanceKm: Number(r.distance_km),
       fare: Number(r.fare),
       status: r.status,
+      paymentMethod: r.payment_method || 'qris',
+      paymentStatus: r.payment_status || (r.is_paid ? 'paid' : 'unpaid'),
+      isPaid: r.is_paid ?? (r.payment_status === 'paid'),
       createdAt: r.created_at
     }));
 
@@ -111,6 +152,7 @@ export async function GET() {
       receiverId: m.receiver_id,
       receiverName: m.receiver_name,
       message: m.message,
+      isRead: m.is_read ?? false,
       createdAt: m.created_at
     }));
 
@@ -127,6 +169,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
+      users,
       stores,
       products,
       drivers,
@@ -146,6 +189,27 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { action, data } = body;
 
+    if (action === 'register_user') {
+      const { id, name, email, phone, password, role, avatar } = data;
+      const validUserId = parseUuidOrNull(id) || `a0000000-${Date.now().toString().slice(-4)}-4000-8000-${Math.floor(Math.random()*1000000000000).toString().padStart(12, '0')}`;
+
+      const res = await queryDb(
+        `INSERT INTO public.profiles (id, name, email, phone, password, role, avatar)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           email = EXCLUDED.email,
+           phone = EXCLUDED.phone,
+           password = EXCLUDED.password,
+           avatar = EXCLUDED.avatar
+         RETURNING *`,
+        [validUserId, name, email || null, phone || null, password || null, role || 'buyer', avatar || null]
+      );
+
+      console.log('API POST SUCCESS: Registered user in Supabase public.profiles:', res.rows[0]);
+      return NextResponse.json({ success: true, user: res.rows[0] });
+    }
+
     if (action === 'create_order') {
       const {
         id,
@@ -158,6 +222,8 @@ export async function POST(req: Request) {
         totalAmount,
         deliveryFee,
         status,
+        paymentMethod,
+        paymentStatus,
         deliveryAddress,
         lat,
         lng
@@ -166,10 +232,17 @@ export async function POST(req: Request) {
       const validOrderId = parseUuidOrNull(id) || `10000000-${Date.now().toString().slice(-4)}-4000-8000-${Math.floor(Math.random()*1000000000000).toString().padStart(12, '0')}`;
       const validBuyerId = parseUuidOrNull(buyerId);
       const validStoreId = parseUuidOrNull(storeId);
+      const isPaidBool = paymentStatus === 'paid';
+
+      await queryDb(`
+        ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'qris';
+        ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';
+        ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
+      `).catch(() => {});
 
       const res = await queryDb(
-        `INSERT INTO public.orders (id, buyer_id, buyer_name, buyer_phone, store_id, store_name, items, total_amount, delivery_fee, status, delivery_address, lat, lng)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `INSERT INTO public.orders (id, buyer_id, buyer_name, buyer_phone, store_id, store_name, items, total_amount, delivery_fee, status, payment_method, payment_status, is_paid, delivery_address, lat, lng)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING *`,
         [
           validOrderId,
@@ -182,13 +255,16 @@ export async function POST(req: Request) {
           totalAmount || 0,
           deliveryFee || 5000,
           status || 'pending',
+          paymentMethod || 'qris',
+          paymentStatus || 'unpaid',
+          isPaidBool,
           deliveryAddress || 'Desa Maleber',
           lat || -6.8155,
           lng || 107.1865
         ]
       );
 
-      console.log('API POST SUCCESS: Inserted order into Supabase!', res.rows[0]);
+      console.log('API POST SUCCESS: Inserted order with is_paid into Supabase!', res.rows[0]);
       return NextResponse.json({ success: true, order: res.rows[0] });
     }
 
@@ -206,15 +282,24 @@ export async function POST(req: Request) {
         destLng,
         distanceKm,
         fare,
-        status
+        status,
+        paymentMethod,
+        paymentStatus
       } = data;
 
       const validRideId = parseUuidOrNull(id) || `20000000-${Date.now().toString().slice(-4)}-4000-8000-${Math.floor(Math.random()*1000000000000).toString().padStart(12, '0')}`;
       const validPassengerId = parseUuidOrNull(passengerId);
+      const isPaidBool = paymentStatus === 'paid';
+
+      await queryDb(`
+        ALTER TABLE public.ride_requests ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'qris';
+        ALTER TABLE public.ride_requests ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';
+        ALTER TABLE public.ride_requests ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
+      `).catch(() => {});
 
       const res = await queryDb(
-        `INSERT INTO public.ride_requests (id, passenger_id, passenger_name, passenger_phone, pickup_address, pickup_lat, pickup_lng, dest_address, dest_lat, dest_lng, distance_km, fare, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `INSERT INTO public.ride_requests (id, passenger_id, passenger_name, passenger_phone, pickup_address, pickup_lat, pickup_lng, dest_address, dest_lat, dest_lng, distance_km, fare, status, payment_method, payment_status, is_paid)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING *`,
         [
           validRideId,
@@ -229,11 +314,14 @@ export async function POST(req: Request) {
           destLng || 107.1890,
           distanceKm || 1.0,
           fare || 6000,
-          status || 'requested'
+          status || 'requested',
+          paymentMethod || 'qris',
+          paymentStatus || 'unpaid',
+          isPaidBool
         ]
       );
 
-      console.log('API POST SUCCESS: Inserted ride request into Supabase!', res.rows[0]);
+      console.log('API POST SUCCESS: Inserted ride request with is_paid into Supabase!', res.rows[0]);
       return NextResponse.json({ success: true, ride: res.rows[0] });
     }
 
@@ -291,15 +379,23 @@ export async function POST(req: Request) {
       const validOrderId = parseUuidOrNull(orderId) || orderId;
       const validDriverId = parseUuidOrNull(driverId);
 
-      if (validDriverId) {
-        await queryDb(
-          `UPDATE public.orders SET status = $1, driver_id = $2, driver_name = $3 WHERE id = $4`,
-          [status, validDriverId, driverName, validOrderId]
-        );
-      } else if (cancelReason) {
-        await queryDb(`UPDATE public.orders SET status = $1, cancel_reason = $2 WHERE id = $3`, [status, cancelReason, validOrderId]);
-      } else {
-        await queryDb(`UPDATE public.orders SET status = $1 WHERE id = $2`, [status, validOrderId]);
+      try {
+        await queryDb(`ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT`).catch(() => {});
+        if (validDriverId) {
+          await queryDb(
+            `UPDATE public.orders SET status = $1, driver_id = $2, driver_name = $3 WHERE id = $4`,
+            [status, validDriverId, driverName, validOrderId]
+          );
+        } else if (cancelReason) {
+          await queryDb(`UPDATE public.orders SET status = $1, cancel_reason = $2 WHERE id = $3`, [status, cancelReason, validOrderId])
+            .catch(async () => {
+              await queryDb(`UPDATE public.orders SET status = $1 WHERE id = $2`, [status, validOrderId]);
+            });
+        } else {
+          await queryDb(`UPDATE public.orders SET status = $1 WHERE id = $2`, [status, validOrderId]);
+        }
+      } catch (e: any) {
+        console.warn('Order status update notice:', e.message);
       }
       return NextResponse.json({ success: true });
     }
@@ -309,15 +405,23 @@ export async function POST(req: Request) {
       const validRideId = parseUuidOrNull(rideId) || rideId;
       const validDriverId = parseUuidOrNull(driverId);
 
-      if (validDriverId) {
-        await queryDb(
-          `UPDATE public.ride_requests SET status = $1, driver_id = $2, driver_name = $3 WHERE id = $4`,
-          [status, validDriverId, driverName, validRideId]
-        );
-      } else if (cancelReason) {
-        await queryDb(`UPDATE public.ride_requests SET status = $1, cancel_reason = $2 WHERE id = $3`, [status, cancelReason, validRideId]);
-      } else {
-        await queryDb(`UPDATE public.ride_requests SET status = $1 WHERE id = $2`, [status, validRideId]);
+      try {
+        await queryDb(`ALTER TABLE public.ride_requests ADD COLUMN IF NOT EXISTS cancel_reason TEXT`).catch(() => {});
+        if (validDriverId) {
+          await queryDb(
+            `UPDATE public.ride_requests SET status = $1, driver_id = $2, driver_name = $3 WHERE id = $4`,
+            [status, validDriverId, driverName, validRideId]
+          );
+        } else if (cancelReason) {
+          await queryDb(`UPDATE public.ride_requests SET status = $1, cancel_reason = $2 WHERE id = $3`, [status, cancelReason, validRideId])
+            .catch(async () => {
+              await queryDb(`UPDATE public.ride_requests SET status = $1 WHERE id = $2`, [status, validRideId]);
+            });
+        } else {
+          await queryDb(`UPDATE public.ride_requests SET status = $1 WHERE id = $2`, [status, validRideId]);
+        }
+      } catch (e: any) {
+        console.warn('Ride status update notice:', e.message);
       }
       return NextResponse.json({ success: true });
     }
@@ -351,9 +455,11 @@ export async function POST(req: Request) {
       const { id, orderId, rideId, senderId, senderName, senderRole, receiverId, receiverName, message } = data;
       const validMsgId = parseUuidOrNull(id) || `50000000-${Date.now().toString().slice(-4)}-4000-8000-${Math.floor(Math.random()*1000000000000).toString().padStart(12, '0')}`;
 
+      await queryDb(`ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;`).catch(() => {});
+
       const res = await queryDb(
-        `INSERT INTO public.messages (id, order_id, ride_id, sender_id, sender_name, sender_role, receiver_id, receiver_name, message)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO public.messages (id, order_id, ride_id, sender_id, sender_name, sender_role, receiver_id, receiver_name, message, is_read)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE)
          RETURNING *`,
         [
           validMsgId,
@@ -370,6 +476,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: res.rows[0] });
     }
 
+    if (action === 'mark_messages_read') {
+      const { orderId, rideId, currentUserId } = data;
+      await queryDb(`ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;`).catch(() => {});
+      if (orderId) {
+        await queryDb(`UPDATE public.messages SET is_read = TRUE WHERE order_id = $1 AND sender_id != $2`, [orderId, currentUserId]).catch(() => {});
+      } else if (rideId) {
+        await queryDb(`UPDATE public.messages SET is_read = TRUE WHERE ride_id = $1 AND sender_id != $2`, [rideId, currentUserId]).catch(() => {});
+      } else if (currentUserId) {
+        await queryDb(`UPDATE public.messages SET is_read = TRUE WHERE receiver_id = $1`, [currentUserId]).catch(() => {});
+      }
+      return NextResponse.json({ success: true });
+    }
+
     if (action === 'update_driver_location') {
       const { driverId, lat, lng, isOnline } = data;
       const validDriverId = parseUuidOrNull(driverId) || driverId;
@@ -378,6 +497,19 @@ export async function POST(req: Request) {
         await queryDb(
           `UPDATE public.driver_locations SET lat = $1, lng = $2, is_online = COALESCE($3, is_online), updated_at = NOW() WHERE id = $4`,
           [lat, lng, isOnline, validDriverId]
+        ).catch(() => {});
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_store_status') {
+      const { id, isActive } = data;
+      const validStoreId = parseUuidOrNull(id) || id;
+
+      if (validStoreId) {
+        await queryDb(
+          `UPDATE public.stores SET is_active = $1 WHERE id = $2`,
+          [isActive, validStoreId]
         ).catch(() => {});
       }
       return NextResponse.json({ success: true });
