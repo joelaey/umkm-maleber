@@ -230,6 +230,38 @@ export default function ProfileModal({
                     required
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!email || !email.includes('@')) {
+                      alert('Masukkan alamat email yang valid terlebih dahulu!');
+                      return;
+                    }
+                    try {
+                      const res = await fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          to: email,
+                          type: 'otp',
+                          name: name || 'Warga Maleber',
+                          otpCode: Math.floor(100000 + Math.random() * 900000).toString()
+                        })
+                      });
+                      const data = await res.json();
+                      if (res.ok && data.success) {
+                        alert(`✅ Sukses! Email OTP uji coba Resend berhasil dikirim ke: ${email}`);
+                      } else {
+                        alert(`❌ Gagal: ${data.error || 'Gagal mengirim email via Resend'}`);
+                      }
+                    } catch (e: any) {
+                      alert(`❌ Error: ${e.message}`);
+                    }
+                  }}
+                  className="mt-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  ✉️ Tes Kirim Email OTP (via Resend)
+                </button>
               </div>
             </div>
 

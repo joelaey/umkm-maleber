@@ -261,6 +261,25 @@ export default function Home() {
       soundType: 'order'
     });
 
+    // Send order confirmation email via Resend API if buyer has valid email
+    if (currentUser?.email && currentUser.email.includes('@')) {
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: currentUser.email,
+          type: 'order',
+          name: currentUser.name || 'Warga Maleber',
+          orderDetails: {
+            id: newOrder.id,
+            storeName: newOrder.storeName,
+            totalAmount: newOrder.totalAmount,
+            deliveryAddress: newOrder.deliveryAddress
+          }
+        })
+      }).catch((e) => console.error('Order Resend email error:', e));
+    }
+
     // Write row directly into Supabase PostgreSQL orders table
     try {
       const res = await fetch('/api/db', {
