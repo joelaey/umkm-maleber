@@ -257,9 +257,6 @@ export default function SellerMode({
               <p className="text-[10px] text-rose-500 font-bold">Komisi platform: -{formatRupiah(totalSellerCommission)} ({(SELLER_COMMISSION_RATE * 100).toFixed(0)}%)</p>
             </div>
           </div>
-          <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-            Lihat History ➔
-          </span>
         </button>
 
         <button
@@ -278,9 +275,6 @@ export default function SellerMode({
               </h4>
             </div>
           </div>
-          <span className="text-[10px] font-extrabold text-amber-600 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-            Lihat History ➔
-          </span>
         </button>
 
         <button
@@ -299,9 +293,6 @@ export default function SellerMode({
               </h4>
             </div>
           </div>
-          <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-800 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-            Katalog ➔
-          </span>
         </button>
       </div>
 
@@ -606,7 +597,7 @@ export default function SellerMode({
         const realReviewCount = myStoreReviews.length;
         const realAvgRating = realReviewCount > 0
           ? (myStoreReviews.reduce((sum, r) => sum + r.rating, 0) / realReviewCount).toFixed(1)
-          : '5.0';
+          : '0.0';
 
         return (
           <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
@@ -658,7 +649,7 @@ export default function SellerMode({
             <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
               <div>
                 <h3 className="text-lg font-black text-zinc-900 dark:text-white">Tambah Produk UMKM Maleber</h3>
-                <p className="text-xs text-zinc-500">Kelola hingga 10 Foto Galeri Produk (Shopee Style)</p>
+                <p className="text-xs text-zinc-500">Kelola hingga 10 Foto Galeri Produk</p>
               </div>
               <button onClick={() => setShowAddProductModal(false)} className="text-zinc-400 hover:text-zinc-600 font-bold text-lg cursor-pointer">✕</button>
             </div>
@@ -815,7 +806,7 @@ export default function SellerMode({
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                      🍱 Opsi &amp; Varian Kustom (ShopeeFood Style)
+                      🍱 Opsi &amp; Varian Kustom Produk
                     </h4>
                     <p className="text-[11px] text-zinc-500">Atur pilihan sambal, lauk tambahan, topping, dll.</p>
                   </div>

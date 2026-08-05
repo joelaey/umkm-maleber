@@ -48,6 +48,10 @@ const PRESET_MESSAGES: Record<UserRole, string[]> = {
   admin: [
     'Halo warga Maleber, ada yang bisa kami bantu?',
     'Laporan Anda telah diterima petugas desa.'
+  ],
+  superadmin: [
+    'Halo, Sekretariat Super Admin Pemilik Sistem di sini.',
+    'Laporan & audit sistem telah diverifikasi.'
   ]
 };
 
@@ -79,17 +83,14 @@ export default function ChatModal({
       const roleB = targetUser.role;
 
       // Case A: Current User (Role A) sent message to Target User (Role B)
-      const isSenderA = m.senderRole === roleA || m.senderId === currentUserId || m.senderName === currentUserName;
-      const isReceiverB = m.receiverRole === roleB || m.receiverId === targetUser.id || m.receiverName === targetUser.name || (!m.receiverRole && (m.receiverId === targetUser.id || m.receiverName === targetUser.name));
+      const isAtoB = (m.senderRole === roleA || m.senderId === currentUserId || m.senderName === currentUserName) &&
+                     (m.receiverRole === roleB || m.receiverId === targetUser.id || m.receiverName === targetUser.name || !m.receiverRole);
 
       // Case B: Target User (Role B) sent message to Current User (Role A)
-      const isSenderB = m.senderRole === roleB || m.senderId === targetUser.id || m.senderName === targetUser.name;
-      const isReceiverA = m.receiverRole === roleA || m.receiverId === currentUserId || m.receiverName === currentUserName || (!m.receiverRole && (m.receiverId === currentUserId || m.receiverName === currentUserName));
+      const isBtoA = (m.senderRole === roleB || m.senderId === targetUser.id || m.senderName === targetUser.name) &&
+                     (m.receiverRole === roleA || m.receiverId === currentUserId || m.receiverName === currentUserName || !m.receiverRole);
 
-      const isDirection1 = isSenderA && isReceiverB;
-      const isDirection2 = isSenderB && isReceiverA;
-
-      return isDirection1 || isDirection2;
+      return isAtoB || isBtoA;
     }
 
     // 2. Ride-context chat room: STRICT match on rideId and exact 2-way role pair
@@ -99,13 +100,13 @@ export default function ChatModal({
       const roleA = currentUserRole;
       const roleB = targetUser.role;
 
-      const isSenderA = m.senderRole === roleA || m.senderId === currentUserId || m.senderName === currentUserName;
-      const isReceiverB = m.receiverRole === roleB || m.receiverId === targetUser.id || m.receiverName === targetUser.name || (!m.receiverRole && (m.receiverId === targetUser.id || m.receiverName === targetUser.name));
+      const isAtoB = (m.senderRole === roleA || m.senderId === currentUserId || m.senderName === currentUserName) &&
+                     (m.receiverRole === roleB || m.receiverId === targetUser.id || m.receiverName === targetUser.name || !m.receiverRole);
 
-      const isSenderB = m.senderRole === roleB || m.senderId === targetUser.id || m.senderName === targetUser.name;
-      const isReceiverA = m.receiverRole === roleA || m.receiverId === currentUserId || m.receiverName === currentUserName || (!m.receiverRole && (m.receiverId === currentUserId || m.receiverName === currentUserName));
+      const isBtoA = (m.senderRole === roleB || m.senderId === targetUser.id || m.senderName === targetUser.name) &&
+                     (m.receiverRole === roleA || m.receiverId === currentUserId || m.receiverName === currentUserName || !m.receiverRole);
 
-      return (isSenderA && isReceiverB) || (isSenderB && isReceiverA);
+      return isAtoB || isBtoA;
     }
 
     // 3. General direct chat room (only when no orderId or rideId is specified)

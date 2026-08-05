@@ -178,6 +178,9 @@ export default function ProductDetailPage({
             const productReviews = (reviews || []).filter(
               (r) => r.targetId === product.id && r.targetType === 'product'
             );
+            const realProductAvg = productReviews.length > 0
+              ? (productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length).toFixed(1)
+              : (product.rating && product.rating > 0 ? product.rating.toFixed(1) : '0.0');
 
             return (
               <div className="bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3 sm:space-y-4">
@@ -186,7 +189,7 @@ export default function ProductDetailPage({
                     <MessageSquare className="w-4 h-4 text-amber-500 shrink-0" /> Ulasan Warga Maleber
                   </h4>
                   <span className="text-[10px] sm:text-xs font-bold text-amber-500 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0">
-                    ★ {product.rating || 5.0} ({productReviews.length} Ulasan)
+                    ★ {realProductAvg} ({productReviews.length} Ulasan)
                   </span>
                 </div>
 
@@ -228,18 +231,27 @@ export default function ProductDetailPage({
           
           {/* Title, Rating & Price Header */}
           <div className="bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3 sm:space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
-                {product.category}
-              </span>
-              {product.rating && (
-                <div className="flex items-center gap-1 text-amber-500 font-extrabold text-xs sm:text-sm">
-                  <Star className="w-3.5 h-3.5 fill-current" />
-                  <span>{product.rating}</span>
-                  <span className="text-zinc-400 text-[10px] sm:text-xs font-normal">({product.salesCount || 120}+ Terjual)</span>
+            {(() => {
+              const productReviews = (reviews || []).filter(
+                (r) => r.targetId === product.id && r.targetType === 'product'
+              );
+              const realProductAvg = productReviews.length > 0
+                ? (productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length).toFixed(1)
+                : (product.rating && product.rating > 0 ? product.rating.toFixed(1) : '0.0');
+
+              return (
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
+                    {product.category}
+                  </span>
+                  <div className="flex items-center gap-1 text-amber-500 font-extrabold text-xs sm:text-sm">
+                    <Star className="w-3.5 h-3.5 fill-current" />
+                    <span>{realProductAvg}</span>
+                    <span className="text-zinc-400 text-[10px] sm:text-xs font-normal">({productReviews.length} Ulasan)</span>
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             <h1 className="text-lg sm:text-3xl font-black text-zinc-900 dark:text-white leading-snug sm:leading-tight">
               {product.name}
@@ -281,12 +293,21 @@ export default function ProductDetailPage({
                     Chat Toko
                   </button>
                 )}
-                <div className="text-right">
-                  <span className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
-                    ★ {store.rating} ({store.reviewCount})
-                  </span>
-                  <p className="text-[9px] sm:text-[10px] text-zinc-400 mt-0.5">Pemilik: {store.ownerName}</p>
-                </div>
+                {(() => {
+                  const storeReviews = (reviews || []).filter((r) => r.targetId === store.id && r.targetType === 'store');
+                  const realStoreAvg = storeReviews.length > 0
+                    ? (storeReviews.reduce((sum, r) => sum + r.rating, 0) / storeReviews.length).toFixed(1)
+                    : (store.rating && store.rating > 0 ? store.rating.toFixed(1) : '0.0');
+
+                  return (
+                    <div className="text-right">
+                      <span className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
+                        ★ {realStoreAvg} ({storeReviews.length})
+                      </span>
+                      <p className="text-[9px] sm:text-[10px] text-zinc-400 mt-0.5">Pemilik: {store.ownerName}</p>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}

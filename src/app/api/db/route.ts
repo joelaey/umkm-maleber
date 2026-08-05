@@ -22,6 +22,10 @@ export async function GET() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
       ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password TEXT;
+      ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+      ALTER TABLE public.reviews DROP CONSTRAINT IF EXISTS reviews_user_id_fkey;
+      ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_buyer_id_fkey;
+      ALTER TABLE public.ride_requests DROP CONSTRAINT IF EXISTS ride_requests_passenger_id_fkey;
       ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'qris';
       ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';
       ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
@@ -31,12 +35,23 @@ export async function GET() {
       ALTER TABLE public.ride_requests ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
 
       ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
+      ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS receiver_role TEXT;
+
+      CREATE TABLE IF NOT EXISTS public.driver_vehicles (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        driver_id TEXT UNIQUE NOT NULL,
+        vehicle_model TEXT NOT NULL,
+        vehicle_number TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+      UPDATE public.profiles SET role = 'superadmin' WHERE email = 'superadmin@maleber.des.id' AND role != 'superadmin';
     `).catch((e) => console.error('Profiles & Orders table init notice:', e.message));
 
     const profilesRes = await queryDb('SELECT * FROM public.profiles ORDER BY created_at DESC').catch(() => ({ rows: [] }));
     const storesRes = await queryDb('SELECT * FROM public.stores ORDER BY created_at DESC');
     const productsRes = await queryDb('SELECT * FROM public.products ORDER BY created_at DESC');
     const driversRes = await queryDb('SELECT * FROM public.driver_locations ORDER BY updated_at DESC');
+    const driverVehiclesRes = await queryDb('SELECT * FROM public.driver_vehicles').catch(() => ({ rows: [] }));
     const ordersRes = await queryDb('SELECT * FROM public.orders ORDER BY created_at DESC');
     const ridesRes = await queryDb('SELECT * FROM public.ride_requests ORDER BY created_at DESC');
     const reviewsRes = await queryDb('SELECT * FROM public.reviews ORDER BY created_at DESC');
@@ -48,7 +63,7 @@ export async function GET() {
       email: u.email,
       phone: u.phone,
       password: u.password,
-      role: u.role || 'buyer',
+      role: u.email === 'superadmin@maleber.des.id' ? 'superadmin' : (u.role || 'buyer'),
       avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'
     }));
 
@@ -81,22 +96,25 @@ export async function GET() {
       images: p.images || [p.image],
       isAvailable: p.is_available ?? true,
       unit: p.unit || 'porsi',
-      rating: Number(p.rating) || 5.0,
+      rating: Number(p.rating) || 0,
       salesCount: p.sales_count || 0
     }));
 
-    const drivers = driversRes.rows.map((d) => ({
-      id: d.id,
-      name: d.driver_name,
-      phone: d.phone,
-      vehicleNumber: d.vehicle_number,
-      vehicleModel: d.vehicle_model,
-      isOnline: d.is_online,
-      lat: Number(d.lat),
-      lng: Number(d.lng),
-      rating: Number(d.rating) || 5.0,
-      reviewCount: 12
-    }));
+    const drivers = driversRes.rows.map((d) => {
+      const v = driverVehiclesRes.rows.find((veh: any) => veh.driver_id === d.id);
+      return {
+        id: d.id,
+        name: d.driver_name,
+        phone: d.phone,
+        vehicleNumber: v ? v.vehicle_number : d.vehicle_number,
+        vehicleModel: v ? v.vehicle_model : d.vehicle_model,
+        isOnline: d.is_online,
+        lat: Number(d.lat),
+        lng: Number(d.lng),
+        rating: Number(d.rating) || 0,
+        reviewCount: 0
+      };
+    });
 
     const orders = ordersRes.rows.map((o) => ({
       id: o.id,
@@ -151,6 +169,7 @@ export async function GET() {
       senderRole: m.sender_role,
       receiverId: m.receiver_id,
       receiverName: m.receiver_name,
+      receiverRole: m.receiver_role || undefined,
       message: m.message,
       isRead: m.is_read ?? false,
       createdAt: m.created_at
@@ -394,6 +413,10 @@ export async function POST(req: Request) {
         } else {
           await queryDb(`UPDATE public.orders SET status = $1 WHERE id = $2`, [status, validOrderId]);
         }
+
+        if (status === 'completed' || status === 'cancelled') {
+          await queryDb(`DELETE FROM public.messages WHERE order_id = $1`, [validOrderId]).catch(() => {});
+        }
       } catch (e: any) {
         console.warn('Order status update notice:', e.message);
       }
@@ -419,6 +442,10 @@ export async function POST(req: Request) {
             });
         } else {
           await queryDb(`UPDATE public.ride_requests SET status = $1 WHERE id = $2`, [status, validRideId]);
+        }
+
+        if (status === 'completed' || status === 'cancelled') {
+          await queryDb(`DELETE FROM public.messages WHERE ride_id = $1`, [validRideId]).catch(() => {});
         }
       } catch (e: any) {
         console.warn('Ride status update notice:', e.message);
@@ -452,14 +479,15 @@ export async function POST(req: Request) {
     }
 
     if (action === 'send_message') {
-      const { id, orderId, rideId, senderId, senderName, senderRole, receiverId, receiverName, message } = data;
+      const { id, orderId, rideId, senderId, senderName, senderRole, receiverId, receiverName, receiverRole, message } = data;
       const validMsgId = parseUuidOrNull(id) || `50000000-${Date.now().toString().slice(-4)}-4000-8000-${Math.floor(Math.random()*1000000000000).toString().padStart(12, '0')}`;
 
       await queryDb(`ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;`).catch(() => {});
+      await queryDb(`ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS receiver_role TEXT;`).catch(() => {});
 
       const res = await queryDb(
-        `INSERT INTO public.messages (id, order_id, ride_id, sender_id, sender_name, sender_role, receiver_id, receiver_name, message, is_read)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE)
+        `INSERT INTO public.messages (id, order_id, ride_id, sender_id, sender_name, sender_role, receiver_id, receiver_name, receiver_role, message, is_read)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE)
          RETURNING *`,
         [
           validMsgId,
@@ -470,6 +498,7 @@ export async function POST(req: Request) {
           senderRole || 'buyer',
           receiverId || 'usr-target',
           receiverName || 'Mitra Maleber',
+          receiverRole || null,
           message || ''
         ]
       );
@@ -502,6 +531,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'update_driver_vehicle') {
+      const { driverId, vehicleInfo, vehicleModel, vehicleNumber } = data;
+      const validDriverId = parseUuidOrNull(driverId) || driverId;
+
+      await queryDb(`
+        CREATE TABLE IF NOT EXISTS public.driver_vehicles (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          driver_id TEXT UNIQUE NOT NULL,
+          vehicle_model TEXT NOT NULL,
+          vehicle_number TEXT NOT NULL,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )
+      `).catch(() => {});
+
+      if (validDriverId) {
+        await queryDb(
+          `INSERT INTO public.driver_vehicles (driver_id, vehicle_model, vehicle_number, updated_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (driver_id) DO UPDATE 
+           SET vehicle_model = EXCLUDED.vehicle_model, vehicle_number = EXCLUDED.vehicle_number, updated_at = NOW()`,
+          [validDriverId, vehicleModel || vehicleInfo, vehicleNumber || 'F 3312 WX']
+        ).catch(() => {});
+
+        await queryDb(
+          `UPDATE public.driver_locations SET vehicle_model = $1, vehicle_number = $2 WHERE id = $3`,
+          [vehicleModel || vehicleInfo, vehicleNumber || 'F 3312 WX', validDriverId]
+        ).catch(() => {});
+      }
+      return NextResponse.json({ success: true });
+    }
+
     if (action === 'update_store_status') {
       const { id, isActive } = data;
       const validStoreId = parseUuidOrNull(id) || id;
@@ -513,6 +573,105 @@ export async function POST(req: Request) {
         ).catch(() => {});
       }
       return NextResponse.json({ success: true });
+    }
+
+    if (action === 'create_profile') {
+      const { id, name, email, phone, role, password, avatar } = data;
+      const validId = parseUuidOrNull(id) || `00000000-0000-4000-8000-${Math.floor(Math.random()*1000000000000).toString().padStart(12, '0')}`;
+      const res = await queryDb(
+        `INSERT INTO public.profiles (id, name, email, phone, role, password, avatar)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (email) DO UPDATE 
+         SET name = EXCLUDED.name, phone = EXCLUDED.phone, role = EXCLUDED.role, password = EXCLUDED.password, avatar = EXCLUDED.avatar
+         RETURNING *`,
+        [validId, name, email, phone || '', role || 'buyer', password || 'maleber123', avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80']
+      );
+      return NextResponse.json({ success: true, profile: res.rows[0] });
+    }
+
+    if (action === 'update_profile') {
+      const { id, name, email, phone, role } = data;
+      const validId = parseUuidOrNull(id);
+      if (validId) {
+        await queryDb(
+          `UPDATE public.profiles SET name = $1, email = $2, phone = $3, role = $4 WHERE id = $5`,
+          [name, email, phone, role, validId]
+        );
+      } else if (email) {
+        await queryDb(
+          `UPDATE public.profiles SET name = $1, phone = $2, role = $3 WHERE email = $4`,
+          [name, phone, role, email]
+        );
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'delete_profile') {
+      const { id, email } = data;
+      console.log('API POST delete_profile triggered:', { id, email });
+
+      try {
+        const uId = id ? String(id) : '';
+        const uEmail = email ? String(email) : '';
+
+        // 1. Delete dependent messages
+        await queryDb(
+          `DELETE FROM public.messages WHERE sender_id IN (SELECT id::text FROM public.profiles WHERE id::text = $1 OR email = $2) OR receiver_id IN (SELECT id::text FROM public.profiles WHERE id::text = $1 OR email = $2)`,
+          [uId, uEmail]
+        ).catch((e) => console.warn('Delete messages notice:', e.message));
+
+        // 2. Delete dependent reviews (user_id is UUID, target_id is TEXT) - SEPARATE SQL QUERIES TO PREVENT OPERATOR TYPE MISMATCH
+        await queryDb(
+          `DELETE FROM public.reviews WHERE user_id IN (SELECT id FROM public.profiles WHERE id::text = $1 OR email = $2)`,
+          [uId, uEmail]
+        ).catch((e) => console.warn('Delete user reviews notice:', e.message));
+
+        await queryDb(
+          `DELETE FROM public.reviews WHERE target_id IN (SELECT id::text FROM public.profiles WHERE id::text = $1 OR email = $2)`,
+          [uId, uEmail]
+        ).catch((e) => console.warn('Delete target reviews notice:', e.message));
+
+        // 3. Delete dependent orders
+        await queryDb(
+          `DELETE FROM public.orders WHERE buyer_id IN (SELECT id FROM public.profiles WHERE id::text = $1 OR email = $2)`,
+          [uId, uEmail]
+        ).catch((e) => console.warn('Delete orders notice:', e.message));
+
+        // 4. Delete dependent ride requests
+        await queryDb(
+          `DELETE FROM public.ride_requests WHERE passenger_id IN (SELECT id FROM public.profiles WHERE id::text = $1 OR email = $2)`,
+          [uId, uEmail]
+        ).catch((e) => console.warn('Delete rides notice:', e.message));
+
+        // 5. Delete dependent stores
+        await queryDb(
+          `DELETE FROM public.stores WHERE owner_id IN (SELECT id FROM public.profiles WHERE id::text = $1 OR email = $2)`,
+          [uId, uEmail]
+        ).catch((e) => console.warn('Delete stores notice:', e.message));
+
+        // 6. Delete dependent driver locations & vehicles
+        await queryDb(
+          `DELETE FROM public.driver_locations WHERE id IN (SELECT id FROM public.profiles WHERE id::text = $1 OR email = $2)`,
+          [uId, uEmail]
+        ).catch((e) => console.warn('Delete driver_locations notice:', e.message));
+
+        await queryDb(
+          `DELETE FROM public.driver_vehicles WHERE driver_id IN (SELECT id::text FROM public.profiles WHERE id::text = $1 OR email = $2)`,
+          [uId, uEmail]
+        ).catch((e) => console.warn('Delete driver_vehicles notice:', e.message));
+
+        // 7. Finally, delete target profile from public.profiles
+        const delRes = await queryDb(
+          `DELETE FROM public.profiles WHERE id::text = $1 OR email = $2 RETURNING *`,
+          [uId, uEmail]
+        );
+
+        console.log('Successfully deleted profile:', delRes.rows);
+        return NextResponse.json({ success: true, deleted: delRes.rows });
+      } catch (err: any) {
+        console.error('delete_profile error:', err.message);
+        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });

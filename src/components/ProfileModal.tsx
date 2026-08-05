@@ -61,6 +61,11 @@ export default function ProfileModal({
   const [showAddAddr, setShowAddAddr] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // New Fullscreen Map Drop Pin state
+  const [showFullscreenMap, setShowFullscreenMap] = useState(false);
+  const [mapTargetType, setMapTargetType] = useState<'store' | 'buyer'>('store');
+  const [isLocatingGPS, setIsLocatingGPS] = useState(false);
+
   if (!isOpen) return null;
 
   const handleStoreMarkerDragEnd = async (newLat: number, newLng: number) => {
@@ -92,6 +97,106 @@ export default function ProfileModal({
       setNewAddressText(`Alamat GPS (${newLat.toFixed(5)}, ${newLng.toFixed(5)}), Maleber`);
     }
   };
+
+  const handleGPSCurrentLocation = () => {
+    if (!('geolocation' in navigator)) {
+      alert('Browser Anda tidak mendukung fitur lokasi GPS.');
+      return;
+    }
+    setIsLocatingGPS(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocatingGPS(false);
+        const { latitude, longitude } = pos.coords;
+        if (mapTargetType === 'store') {
+          handleStoreMarkerDragEnd(latitude, longitude);
+        } else {
+          handleBuyerMarkerDragEnd(latitude, longitude);
+        }
+      },
+      (err) => {
+        setIsLocatingGPS(false);
+        alert(`Gagal mengambil lokasi GPS: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // FULLSCREEN MAP PICKER OVERLAY (Identical technical flow for Seller & Buyer)
+  // ═══════════════════════════════════════════════════════════════
+  if (showFullscreenMap) {
+    const isStore = mapTargetType === 'store';
+    const activeCoords = isStore ? storeCoords : newCoords;
+    const activeAddress = isStore ? storeAddressText : newAddressText;
+
+    return (
+      <div className="fixed inset-0 z-[999999] bg-black">
+        {/* Fullscreen Map */}
+        <div className="absolute inset-0">
+          <MapComponent
+            className="h-full w-full"
+            center={activeCoords}
+            zoom={17}
+            selectionMode="dest"
+            destLocation={{ lat: activeCoords.lat, lng: activeCoords.lng, address: isStore ? 'Titik Lokasi Toko UMKM' : 'Titik Alamat Favorit' }}
+            onSelectDest={(lat, lng) => {
+              if (isStore) handleStoreMarkerDragEnd(lat, lng);
+              else handleBuyerMarkerDragEnd(lat, lng);
+            }}
+          />
+        </div>
+
+        {/* Clean Top Floating Bar */}
+        <div className="fixed top-4 left-3 right-3 z-[999999] flex items-center justify-between gap-2 max-w-lg mx-auto pointer-events-none">
+          <button
+            type="button"
+            onClick={() => setShowFullscreenMap(false)}
+            className="pointer-events-auto bg-zinc-900/90 backdrop-blur-md text-white h-10 px-4 rounded-full shadow-xl border border-white/15 flex items-center justify-center gap-1.5 hover:bg-black transition-all text-xs font-bold shrink-0 cursor-pointer"
+          >
+            ← Kembali
+          </button>
+
+          <div className="bg-zinc-900/90 backdrop-blur-md px-4 py-2 rounded-full shadow-xl border border-amber-500/40 text-center pointer-events-auto truncate max-w-[200px] sm:max-w-xs">
+            <p className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider">
+              {isStore ? '📍 Titik Lokasi Toko UMKM' : '📍 Titik Alamat Favorit'}
+            </p>
+            <p className="text-[11px] font-medium text-zinc-200 truncate">
+              Klik / Geser titik pin pada peta
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGPSCurrentLocation}
+            disabled={isLocatingGPS}
+            className="pointer-events-auto bg-amber-600 hover:bg-amber-500 text-white h-10 px-4 rounded-full shadow-xl flex items-center justify-center gap-1.5 transition-all text-xs font-extrabold border border-amber-400/30 shrink-0 cursor-pointer"
+          >
+            <Crosshair className={`w-4 h-4 ${isLocatingGPS ? 'animate-spin' : ''}`} />
+            <span>{isLocatingGPS ? '...' : 'GPS'}</span>
+          </button>
+        </div>
+
+        {/* Confirm Location Bottom Sheet Card */}
+        <div className="fixed bottom-6 left-3 right-3 z-[999999] max-w-md mx-auto pointer-events-none">
+          <div className="bg-zinc-900/95 backdrop-blur-md p-4 rounded-3xl border border-zinc-800 shadow-2xl space-y-3 pointer-events-auto">
+            <div className="flex items-center gap-2 px-1 text-zinc-200 text-xs font-medium truncate">
+              <MapPin className="w-4.5 h-4.5 text-amber-400 shrink-0" />
+              <span className="truncate">{activeAddress || 'Lokasi Terpilih di Peta'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowFullscreenMap(false)}
+              className="bg-amber-600 hover:bg-amber-500 text-white font-black text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-lg shadow-amber-600/30 flex items-center justify-center gap-2 transition-all w-full cursor-pointer"
+            >
+              <CheckCircle2 className="w-4.5 h-4.5" />
+              {isStore ? 'Gunakan Titik Lokasi Toko Ini' : 'Gunakan Titik Alamat Ini'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -349,7 +454,7 @@ export default function ProfileModal({
           </div>
 
           {/* SECTION: SELLER STORE LOCATION WITH MAP DROP PIN */}
-          {user.role === 'seller' ? (
+          {user.role === 'seller' && (
             <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-3">
               <div className="flex justify-between items-center flex-wrap gap-1">
                 <div>
@@ -358,37 +463,53 @@ export default function ProfileModal({
                   </h4>
                   <p className="text-[11px] text-zinc-500">Tentukan posisi toko di peta untuk akurasi pengantaran kurir driver</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowStoreMap(!showStoreMap)}
-                  className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
-                    showStoreMap
-                      ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-500'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200'
-                  }`}
-                >
-                  <MapIcon className="w-3.5 h-3.5" />
-                  {showStoreMap ? 'Tutup Peta' : '📌 Drop Pin Peta Toko'}
-                </button>
               </div>
 
-              {/* Interactive Leaflet Map Component for Seller Store */}
-              {showStoreMap && (
-                <div className="space-y-1.5 border border-amber-500/50 rounded-2xl overflow-hidden p-1 bg-amber-50 dark:bg-amber-950/40">
-                  <span className="text-[10px] font-bold text-amber-900 dark:text-amber-200 px-2 block">
-                    📍 Klik / geser titik pin merah untuk menandai posisi persis Toko UMKM Anda:
+              {/* Interactive Clean Map Preview Card for Seller Store */}
+              <div className="space-y-2 border border-amber-500/50 rounded-2xl overflow-hidden p-3 bg-amber-50/70 dark:bg-amber-950/40">
+                <div className="flex justify-between items-center px-0.5">
+                  <span className="text-[11px] font-extrabold text-amber-900 dark:text-amber-200 block truncate">
+                    📍 Pratinjau Posisi Toko ({storeCoords.lat.toFixed(4)}, {storeCoords.lng.toFixed(4)})
                   </span>
-                  <div className="h-48 rounded-xl overflow-hidden shadow-inner">
-                    <MapComponent
-                      center={storeCoords}
-                      zoom={16}
-                      selectionMode="dest"
-                      destLocation={{ lat: storeCoords.lat, lng: storeCoords.lng, address: storeAddressText }}
-                      onSelectDest={(lat, lng) => handleStoreMarkerDragEnd(lat, lng)}
-                    />
+                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                    Satelit Mode
+                  </span>
+                </div>
+
+                <div
+                  className="h-44 rounded-xl overflow-hidden shadow-inner border border-amber-500/30 cursor-pointer relative group"
+                  onClick={() => {
+                    setMapTargetType('store');
+                    setShowFullscreenMap(true);
+                  }}
+                >
+                  <MapComponent
+                    center={storeCoords}
+                    zoom={16}
+                    selectionMode="dest"
+                    destLocation={{ lat: storeCoords.lat, lng: storeCoords.lng, address: storeAddressText }}
+                    onSelectDest={(lat, lng) => handleStoreMarkerDragEnd(lat, lng)}
+                    hideControls={true}
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors flex items-center justify-center pointer-events-none">
+                    <span className="bg-zinc-900/90 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-xl border border-white/20 flex items-center gap-1.5">
+                      <MapIcon className="w-3.5 h-3.5 text-amber-400" /> Klik Untuk Buka Peta Fullscreen
+                    </span>
                   </div>
                 </div>
-              )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMapTargetType('store');
+                    setShowFullscreenMap(true);
+                  }}
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-black py-2.5 rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <MapIcon className="w-4 h-4 text-white" />
+                  📌 Drop Pin Titik Toko Peta Fullscreen
+                </button>
+              </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">Detail Alamat Fisik Toko:</label>
@@ -402,8 +523,10 @@ export default function ProfileModal({
                 />
               </div>
             </div>
-          ) : (
-            /* SECTION: BUYER SAVED ADDRESSES WITH MAP DROP PIN */
+          )}
+
+          {/* SECTION: BUYER SAVED ADDRESSES WITH MAP DROP PIN (ONLY FOR BUYER ROLE) */}
+          {user.role === 'buyer' && (
             <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-3">
               <div className="flex justify-between items-center">
                 <div>

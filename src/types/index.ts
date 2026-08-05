@@ -1,4 +1,4 @@
-export type UserRole = 'buyer' | 'seller' | 'driver' | 'admin';
+export type UserRole = 'buyer' | 'seller' | 'driver' | 'admin' | 'superadmin';
 
 export interface SavedAddress {
   id: string;

@@ -17,6 +17,7 @@ import ToastContainer, { ToastMessage, ToastType } from '@/components/Toast';
 import { UserRole, UserProfile, Store, Product, CartItem, Order, RideRequest, DriverInfo, ChatMessage, Review, PlacePOI } from '@/types';
 import { triggerSystemNotification } from '@/lib/notificationUtils';
 import {
+  INITIAL_USERS,
   INITIAL_STORES,
   INITIAL_PRODUCTS,
   INITIAL_DRIVERS,
@@ -81,6 +82,7 @@ export default function Home() {
   };
 
   // Application Data State (Will be loaded from Supabase PostgreSQL live)
+  const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
   const [stores, setStores] = useState<Store[]>(INITIAL_STORES);
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [drivers, setDrivers] = useState<DriverInfo[]>(INITIAL_DRIVERS);
@@ -105,6 +107,7 @@ export default function Home() {
       const res = await fetch('/api/db');
       const data = await res.json();
       if (data.success) {
+        if (data.users && data.users.length > 0) setUsers(data.users);
         const currentReviews: Review[] = data.reviews || [];
         if (data.reviews && data.reviews.length > 0) setReviews(data.reviews);
 
@@ -117,7 +120,7 @@ export default function Home() {
               const avg = driverRevs.reduce((sum: number, r: Review) => sum + r.rating, 0) / driverRevs.length;
               return { ...drv, rating: Math.round(avg * 10) / 10, reviewCount: driverRevs.length };
             }
-            return { ...drv, reviewCount: drv.reviewCount || 0 };
+            return { ...drv, rating: 0, reviewCount: 0 };
           });
           setDrivers(updatedDrivers);
         }
@@ -131,11 +134,24 @@ export default function Home() {
               const avg = storeRevs.reduce((sum: number, r: Review) => sum + r.rating, 0) / storeRevs.length;
               return { ...st, rating: Math.round(avg * 10) / 10, reviewCount: storeRevs.length };
             }
-            return { ...st, rating: 5.0, reviewCount: 0 };
+            return { ...st, rating: 0, reviewCount: 0 };
           });
           setStores(updatedStores);
         }
-        if (data.products && data.products.length > 0) setProducts(data.products);
+
+        if (data.products && data.products.length > 0) {
+          const updatedProducts = data.products.map((p: Product) => {
+            const pRevs = currentReviews.filter(
+              (r: Review) => r.targetId === p.id && r.targetType === 'product'
+            );
+            if (pRevs.length > 0) {
+              const avg = pRevs.reduce((sum: number, r: Review) => sum + r.rating, 0) / pRevs.length;
+              return { ...p, rating: Math.round(avg * 10) / 10 };
+            }
+            return { ...p, rating: 0 };
+          });
+          setProducts(updatedProducts);
+        }
         if (data.orders) setOrders(data.orders);
         if (data.rides) setRides(data.rides);
         if (data.messages) setMessages(data.messages);
@@ -160,10 +176,43 @@ export default function Home() {
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
   const [authInitialRole, setAuthInitialRole] = useState<UserRole>('buyer');
 
-  const handleSaveProfile = (updatedUser: UserProfile) => {
+  const handleSaveProfile = async (updatedUser: UserProfile) => {
     setCurrentUser(updatedUser);
     localStorage.setItem('maleber_user', JSON.stringify(updatedUser));
-    addToast('success', 'Profil & Alamat Terperbarui! 👤', 'Data profil & daftar alamat favorit Anda tersimpan.');
+
+    // If driver updated vehicleInfo, sync vehicle info to drivers list and driver_vehicles table
+    if (updatedUser.role === 'driver' && updatedUser.vehicleInfo) {
+      const vInfo = updatedUser.vehicleInfo;
+      const match = vInfo.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+      const modelName = match && match[1] ? match[1].trim() : vInfo;
+      const plateNum = match && match[2] ? match[2].trim() : 'F 3312 WX';
+
+      setDrivers((prev) =>
+        prev.map((d) =>
+          d.id === updatedUser.id || d.name === updatedUser.name
+            ? { ...d, vehicleModel: modelName, vehicleNumber: plateNum }
+            : d
+        )
+      );
+
+      try {
+        await fetch('/api/db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_driver_vehicle',
+            data: {
+              driverId: updatedUser.id,
+              vehicleInfo: vInfo,
+              vehicleModel: modelName,
+              vehicleNumber: plateNum
+            }
+          })
+        });
+      } catch (e) { }
+    }
+
+    addToast('success', 'Profil Terperbarui! 👤', 'Data profil & informasi Anda berhasil disimpan.');
   };
 
   // SESSION PERSISTENCE HANDLERS (STAY LOGGED IN ON BROWSER REFRESH)
@@ -461,6 +510,12 @@ export default function Home() {
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
     );
+
+    // Auto-delete order chat messages on completion or cancellation
+    if (newStatus === 'completed' || newStatus === 'cancelled') {
+      setMessages((prev) => prev.filter((m) => m.orderId !== orderId));
+    }
+
     try {
       await fetch('/api/db', {
         method: 'POST',
@@ -485,6 +540,7 @@ export default function Home() {
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled', cancelReason: reason } : o))
     );
+    setMessages((prev) => prev.filter((m) => m.orderId !== orderId));
     try {
       await fetch('/api/db', {
         method: 'POST',
@@ -499,6 +555,7 @@ export default function Home() {
     setRides((prev) =>
       prev.map((r) => (r.id === rideId ? { ...r, status: 'cancelled', cancelReason: reason } : r))
     );
+    setMessages((prev) => prev.filter((m) => m.rideId !== rideId));
     try {
       await fetch('/api/db', {
         method: 'POST',
@@ -550,6 +607,11 @@ export default function Home() {
     setRides((prev) =>
       prev.map((r) => (r.id === rideId ? { ...r, status: newStatus } : r))
     );
+
+    // Auto-delete ride chat messages on completion or cancellation
+    if (newStatus === 'completed' || newStatus === 'cancelled') {
+      setMessages((prev) => prev.filter((m) => m.rideId !== rideId));
+    }
     try {
       await fetch('/api/db', {
         method: 'POST',
@@ -847,13 +909,15 @@ export default function Home() {
               );
             })()}
 
-            {currentRole === 'admin' && (
+            {(currentRole === 'admin' || currentRole === 'superadmin') && (
               <AdminMode
                 stores={stores}
                 drivers={drivers}
                 orders={orders}
                 rides={rides}
                 places={places}
+                users={users}
+                isPetugasDesa={currentRole === 'admin'}
                 onAddStoreByAdmin={(newStore) => {
                   setStores((prev) => [newStore, ...prev]);
                   addToast('success', 'Toko UMKM Terdaftar!', `${newStore.name} berhasil diverifikasi.`);
@@ -861,6 +925,10 @@ export default function Home() {
                 onAddDriverByAdmin={(newDriver) => {
                   setDrivers((prev) => [newDriver, ...prev]);
                   addToast('success', 'Driver Ojek Terdaftar!', `${newDriver.name} (${newDriver.vehicleNumber}) aktif.`);
+                }}
+                onDeleteUserByAdmin={(userId, userEmail) => {
+                  setUsers((prev) => prev.filter((u) => u.id !== userId && u.email !== userEmail));
+                  addToast('info', 'User Berhasil Dihapus 🗑️', `Akun user telah terhapus dari sistem Maleber.`);
                 }}
                 onSwitchRoleView={(r) => {
                   setCurrentRole(r);

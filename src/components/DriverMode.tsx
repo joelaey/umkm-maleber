@@ -242,7 +242,18 @@ export default function DriverMode({
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              <p className="text-xs text-zinc-500 font-medium">Rating {driver.rating} ({driver.reviewCount} ulasan)</p>
+              {(() => {
+                const driverRevs = (reviews || []).filter((r) => (r.targetId === driver.id || r.targetId === driver.name) && r.targetType === 'driver');
+                const realDriverCount = driverRevs.length;
+                const realDriverRating = realDriverCount > 0
+                  ? (driverRevs.reduce((sum, r) => sum + r.rating, 0) / realDriverCount).toFixed(1)
+                  : '0.0';
+                return (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-extrabold flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 fill-current" /> {realDriverRating} ({realDriverCount} ulasan)
+                  </p>
+                );
+              })()}
               {gpsActive ? (
                 <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-500/30">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>

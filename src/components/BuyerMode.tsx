@@ -6,7 +6,7 @@ import MapComponent from './MapComponent';
 import { MALEBER_CENTER, INITIAL_PLACES } from '@/lib/mockData';
 import { calculateRoadDistance, calculateOjekFare, formatDistanceText, getOSRMRoute, getDistanceMeters } from '@/lib/geoUtils';
 import { ShoppingBag, Bike, Star, Clock, MapPin, Search, ArrowRight, ShieldCheck, CheckCircle2, ChevronRight, XCircle, AlertCircle, MessageSquare, Crosshair, Activity, FileText } from 'lucide-react';
-import RatingModal from './RatingModal';
+import RatingModal, { RatingStep } from './RatingModal';
 import CancelReasonModal from './CancelReasonModal';
 import AddToCartModal from './AddToCartModal';
 import { calculateRideFees, BUYER_APP_FEE, formatRupiah } from '@/lib/feeCalculator';
@@ -89,7 +89,7 @@ export default function BuyerMode({
   const [destGeoAddress, setDestGeoAddress] = useState<string | null>(null);
 
   // Rating & Cancel Modal State
-  const [ratingTarget, setRatingTarget] = useState<{ id: string; name: string; type: 'store' | 'driver' | 'product' } | null>(null);
+  const [ratingTarget, setRatingTarget] = useState<{ id: string; name: string; type: 'store' | 'driver' | 'product'; steps?: RatingStep[] } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ id: string; type: 'order' | 'ride'; title: string } | null>(null);
 
   // Aktivitas Tab Filter & Detail Modal State
@@ -1271,13 +1271,24 @@ export default function BuyerMode({
                               </button>
                             )}
                             {isCompleted && (
-                              <button
-                                onClick={() => setRatingTarget({ id: ord.storeId, name: ord.storeName, type: 'store' })}
-                                className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
-                              >
-                                <Star className="w-3.5 h-3.5 fill-current text-amber-500" />
-                                Beri Rating
-                              </button>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  onClick={() => setRatingTarget({ id: ord.storeId, name: ord.storeName, type: 'store' })}
+                                  className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
+                                >
+                                  <Star className="w-3.5 h-3.5 fill-current text-amber-500" />
+                                  Rating Resto
+                                </button>
+                                {Boolean(ord.driverId) && (
+                                  <button
+                                    onClick={() => setRatingTarget({ id: ord.driverId!, name: ord.driverName || 'Driver Maleber', type: 'driver' })}
+                                    className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-blue-200 transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
+                                  >
+                                    <Star className="w-3.5 h-3.5 fill-current text-blue-500" />
+                                    Rating Driver
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1353,7 +1364,7 @@ export default function BuyerMode({
                                 className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
                               >
                                 <Star className="w-3.5 h-3.5 fill-current text-amber-500" />
-                                Beri Rating
+                                Rating Driver
                               </button>
                             )}
                           </div>
@@ -1582,50 +1593,91 @@ export default function BuyerMode({
                 </span>
               </div>
 
-              {/* Chat Action Buttons inside Detail Modal */}
-              {onOpenChat && (
-                <div className="flex gap-2 pt-3 border-t border-emerald-200/60 dark:border-emerald-800/60">
-                  {selectedActivityDetail.type === 'order' ? (
-                    <>
-                      <button
-                        onClick={() => {
-                          const ord = selectedActivityDetail.data as Order;
-                          onOpenChat({ id: ord.storeId, name: ord.storeName, role: 'seller' }, { orderId: ord.id, contextTitle: `Penjual Toko (${ord.storeName})` });
-                        }}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                        Chat Penjual Toko
-                      </button>
-
-                      {/* Only show Chat Driver if a driver has actually taken/accepted the order */}
-                      {Boolean((selectedActivityDetail.data as Order).driverId) && (
+              {/* Action Buttons inside Detail Modal (Chat for active orders, Rating for completed history) */}
+              <div className="flex gap-2 pt-3 border-t border-emerald-200/60 dark:border-emerald-800/60 flex-wrap">
+                {selectedActivityDetail.data.status === 'completed' ? (
+                  <>
+                    {selectedActivityDetail.type === 'order' ? (
+                      <>
                         <button
                           onClick={() => {
                             const ord = selectedActivityDetail.data as Order;
-                            onOpenChat({ id: ord.driverId!, name: ord.driverName || 'Kang Dede (Driver Maleber)', role: 'driver' }, { orderId: ord.id, contextTitle: `Kurir Driver (${ord.driverName || 'Kang Dede'})` });
+                            setRatingTarget({ id: ord.storeId, name: ord.storeName, type: 'store' });
                           }}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                          className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <Star className="w-4 h-4 fill-current" />
+                          Rating Resto
+                        </button>
+                        {Boolean((selectedActivityDetail.data as Order).driverId) && (
+                          <button
+                            onClick={() => {
+                              const ord = selectedActivityDetail.data as Order;
+                              setRatingTarget({ id: ord.driverId!, name: ord.driverName || 'Driver Maleber', type: 'driver' });
+                            }}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                          >
+                            <Star className="w-4 h-4 fill-current" />
+                            Rating Driver
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const ride = selectedActivityDetail.data as RideRequest;
+                          setRatingTarget({ id: ride.driverId || 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', name: ride.driverName || 'Driver Ojek Maleber', type: 'driver' });
+                        }}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <Star className="w-4 h-4 fill-current" />
+                        Rating Driver Ojek
+                      </button>
+                    )}
+                  </>
+                ) : selectedActivityDetail.data.status !== 'cancelled' && onOpenChat && (
+                  <>
+                    {selectedActivityDetail.type === 'order' ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            const ord = selectedActivityDetail.data as Order;
+                            onOpenChat({ id: ord.storeId, name: ord.storeName, role: 'seller' }, { orderId: ord.id, contextTitle: `Penjual Toko (${ord.storeName})` });
+                          }}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
                         >
                           <MessageSquare className="w-4 h-4" />
-                          Chat Kurir Driver
+                          Chat Penjual Toko
                         </button>
-                      )}
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        const ride = selectedActivityDetail.data as RideRequest;
-                        onOpenChat({ id: ride.driverId || 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', name: ride.driverName || 'Kang Dede (Driver Maleber)', role: 'driver' }, { rideId: ride.id, contextTitle: `Driver Ojek (${ride.driverName || 'Kang Dede'})` });
-                      }}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      Chat Driver Ojek Maleber
-                    </button>
-                  )}
-                </div>
-              )}
+
+                        {Boolean((selectedActivityDetail.data as Order).driverId) && (
+                          <button
+                            onClick={() => {
+                              const ord = selectedActivityDetail.data as Order;
+                              onOpenChat({ id: ord.driverId!, name: ord.driverName || 'Kang Dede (Driver Maleber)', role: 'driver' }, { orderId: ord.id, contextTitle: `Kurir Driver (${ord.driverName || 'Kang Dede'})` });
+                            }}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            Chat Kurir Driver
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const ride = selectedActivityDetail.data as RideRequest;
+                          onOpenChat({ id: ride.driverId || 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', name: ride.driverName || 'Kang Dede (Driver Maleber)', role: 'driver' }, { rideId: ride.id, contextTitle: `Driver Ojek (${ride.driverName || 'Kang Dede'})` });
+                        }}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        Chat Driver Ojek Maleber
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>

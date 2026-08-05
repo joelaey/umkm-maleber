@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { UserRole, UserProfile } from '@/types';
-import { ShoppingBag, Store, Bike, ShieldCheck, ShoppingCart, User, LogOut, Sun, Moon, MapPin } from 'lucide-react';
+import { ShoppingBag, Store, Bike, ShieldCheck, Crown, ShoppingCart, User, LogOut, Sun, Moon, MapPin } from 'lucide-react';
 
 interface HeaderProps {
   currentRole: UserRole;
@@ -14,7 +14,7 @@ interface HeaderProps {
   onOpenProfile?: () => void;
   onLogout: () => void;
   onGoToLanding: () => void;
-  isLandingActive: boolean;
+  isLandingActive?: boolean;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
 }
@@ -37,7 +37,8 @@ export default function Header({
     buyer: { label: 'Pembeli', fullLabel: 'Mode Pembeli (Warga)', icon: ShoppingBag, color: 'text-emerald-600', badgeBg: 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300/40' },
     seller: { label: 'Penjual', fullLabel: 'Mode Penjual (UMKM)', icon: Store, color: 'text-amber-600', badgeBg: 'bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-300/40' },
     driver: { label: 'Driver', fullLabel: 'Mode Driver (Ojek)', icon: Bike, color: 'text-blue-600', badgeBg: 'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-300/40' },
-    admin: { label: 'Admin', fullLabel: 'Petugas Desa', icon: ShieldCheck, color: 'text-purple-600', badgeBg: 'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-300/40' }
+    admin: { label: 'Petugas Desa', fullLabel: 'Admin Desa Maleber', icon: ShieldCheck, color: 'text-purple-600', badgeBg: 'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-300/40' },
+    superadmin: { label: 'Super Admin', fullLabel: 'Pemilik Sistem (Super Admin)', icon: Crown, color: 'text-amber-500', badgeBg: 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300/40' }
   };
 
   const CurrentRoleIcon = roleConfig[currentRole].icon;

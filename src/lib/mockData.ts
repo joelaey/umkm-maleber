@@ -14,7 +14,7 @@ export const INITIAL_USERS: UserProfile[] = [
     name: 'Super Admin Maleber',
     email: 'superadmin@maleber.des.id',
     phone: '081100000001',
-    role: 'admin',
+    role: 'superadmin',
     password: 'maleber123',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
   },

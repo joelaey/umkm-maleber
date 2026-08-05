@@ -24,6 +24,7 @@ interface MapComponentProps {
   center?: { lat: number; lng: number };
   isHistoricalView?: boolean;
   forceStreetMode?: boolean;
+  hideControls?: boolean;
 }
 
 export default function MapComponent({
@@ -41,7 +42,8 @@ export default function MapComponent({
   zoom = 16,
   center = { lat: MALEBER_CENTER.lat, lng: MALEBER_CENTER.lng },
   isHistoricalView = false,
-  forceStreetMode = false
+  forceStreetMode = false,
+  hideControls = false
 }: MapComponentProps) {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [L, setL] = useState<any>(null);
@@ -140,8 +142,8 @@ export default function MapComponent({
         </div>
       )}
 
-      {/* Map Control Bar Top Floating (Hidden in Historical View) */}
-      {!isHistoricalView && (
+      {/* Map Control Bar Top Floating (Hidden in Historical View or when hideControls is true) */}
+      {!isHistoricalView && !hideControls && (
         <div className={`absolute z-[1000] flex items-center gap-1.5 transition-all ${
           selectionMode ? 'top-16 right-3' : 'top-3 right-3'
         }`}>
@@ -182,8 +184,8 @@ export default function MapComponent({
         </div>
       )}
 
-      {/* Status Badge Indicator (Hidden in Selection Mode to avoid bottom sheet overlap) */}
-      {!isHistoricalView && !selectionMode && (
+      {/* Status Badge Indicator (Hidden in Selection Mode or when hideControls is true) */}
+      {!isHistoricalView && !selectionMode && !hideControls && (
         <div className="absolute bottom-3 left-3 z-[1000] pointer-events-none">
           <div className="bg-zinc-900/90 backdrop-blur-md text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded-full border border-emerald-500/30 shadow-lg flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -389,8 +391,13 @@ function LeafletMapView({
 
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      map.remove();
-      leafletInstance.current = null;
+      if (leafletInstance.current) {
+        try {
+          leafletInstance.current.off();
+          leafletInstance.current.remove();
+        } catch (e) {}
+        leafletInstance.current = null;
+      }
     };
   }, []);
 
@@ -550,8 +557,8 @@ function LeafletMapView({
           </div>
           <div style="display:flex;align-items:center;gap:4px;background:#fef3c7;padding:4px 8px;border-radius:8px;">
             <span style="font-size:12px;">⭐</span>
-            <span style="font-weight:800;color:#92400e;font-size:12px;">${store.rating}</span>
-            <span style="font-size:10px;color:#92400e;opacity:0.7;">(${store.reviewCount} ulasan)</span>
+            <span style="font-weight:800;color:#92400e;font-size:12px;">${store.rating || '0.0'}</span>
+            <span style="font-size:10px;color:#92400e;opacity:0.7;">(${store.reviewCount || 0} ulasan)</span>
           </div>
         </div>
       `);
@@ -611,11 +618,15 @@ function LeafletMapView({
         const elapsed = (time - startTime) / 1000;
 
         activeDriverMarkers.forEach((item, id) => {
-          const radius = 0.0004; // ~40 meters micro patrol loop
-          const offsetLat = Math.sin(elapsed * 0.2 + id.length) * radius * 0.4;
-          const offsetLng = Math.cos(elapsed * 0.2 + id.length) * radius * 0.4;
+          if (item.marker && item.marker._map && item.marker._icon) {
+            try {
+              const radius = 0.0004; // ~40 meters micro patrol loop
+              const offsetLat = Math.sin(elapsed * 0.2 + id.length) * radius * 0.4;
+              const offsetLng = Math.cos(elapsed * 0.2 + id.length) * radius * 0.4;
 
-          item.marker.setLatLng([item.baseLat + offsetLat, item.baseLng + offsetLng]);
+              item.marker.setLatLng([item.baseLat + offsetLat, item.baseLng + offsetLng]);
+            } catch (e) {}
+          }
         });
 
         animFrameRef.current = requestAnimationFrame(animateDeadReckoning);
