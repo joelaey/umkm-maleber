@@ -612,43 +612,14 @@ export default function AuthModal({
         {/* ---------------- REGISTER MODE: STEP 1 (FORM) ---------------- */}
         {mode === 'register' && step === 'form' && (
           <form onSubmit={handleRegisterFormSubmit} className="space-y-3.5">
-            {/* Role Selector Pill Tabs */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">Daftar Sebagai:</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setRegisterRole('buyer')}
-                  className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border flex items-center justify-center gap-1 ${
-                    registerRole === 'buyer'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200'
-                  }`}
-                >
-                  🛒 Pembeli
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRegisterRole('seller')}
-                  className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border flex items-center justify-center gap-1 ${
-                    registerRole === 'seller'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200'
-                  }`}
-                >
-                  🏪 Penjual UMKM
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRegisterRole('driver')}
-                  className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border flex items-center justify-center gap-1 ${
-                    registerRole === 'driver'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200'
-                  }`}
-                >
-                  🛵 Driver
-                </button>
+            {/* Auto Buyer Registration Info Banner */}
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 sm:p-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-extrabold text-xs">Pendaftaran Otomatis: Pembeli (Warga)</p>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-0.5 leading-relaxed">
+                  Pendaftaran di website ini khusus untuk akun <strong>Warga/Pembeli</strong>. Untuk pendaftaran <strong>Mitra Toko UMKM</strong> dan <strong>Driver Ojek Desa</strong>, silakan mengajukan berkas verifikasi langsung ke Petugas di Kantor Desa Maleber.
+                </p>
               </div>
             </div>
 
