@@ -309,3 +309,101 @@ export async function searchRealPlacesOSM(query: string): Promise<any[]> {
     return [];
   }
 }
+
+/**
+ * Calculates the initial bearing (angle in degrees 0-360) from point A to point B.
+ */
+export function calculateBearing(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+
+  const phi1 = toRad(lat1);
+  const phi2 = toRad(lat2);
+  const deltaLambda = toRad(lng2 - lng1);
+
+  const y = Math.sin(deltaLambda) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+
+  let bearing = toDeg(Math.atan2(y, x));
+  return (bearing + 360) % 360;
+}
+
+/**
+ * Linearly interpolates between two [lat, lng] coordinates.
+ */
+export function lerpCoordinate(
+  start: [number, number],
+  end: [number, number],
+  t: number
+): [number, number] {
+  const clampedT = Math.max(0, Math.min(1, t));
+  return [
+    start[0] + (end[0] - start[0]) * clampedT,
+    start[1] + (end[1] - start[1]) * clampedT
+  ];
+}
+
+/**
+ * Calculates the total length of a polyline in meters.
+ */
+export function getPolylineLengthMeters(polyline: [number, number][]): number {
+  if (!polyline || polyline.length < 2) return 0;
+  let total = 0;
+  for (let i = 0; i < polyline.length - 1; i++) {
+    total += getDistanceMeters(
+      polyline[i][0],
+      polyline[i][1],
+      polyline[i + 1][0],
+      polyline[i + 1][1]
+    );
+  }
+  return total;
+}
+
+/**
+ * Finds the coordinate [lat, lng] and bearing angle along a polyline at a specific distance (in meters).
+ */
+export function getPointAlongPolyline(
+  polyline: [number, number][],
+  targetDistanceMeters: number
+): { point: [number, number]; bearing: number; segmentIndex: number } {
+  if (!polyline || polyline.length === 0) {
+    return { point: [0, 0], bearing: 0, segmentIndex: 0 };
+  }
+  if (polyline.length === 1 || targetDistanceMeters <= 0) {
+    const bearing = polyline.length > 1 ? calculateBearing(polyline[0][0], polyline[0][1], polyline[1][0], polyline[1][1]) : 0;
+    return { point: polyline[0], bearing, segmentIndex: 0 };
+  }
+
+  let accumulated = 0;
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const p1 = polyline[i];
+    const p2 = polyline[i + 1];
+    const segmentLen = getDistanceMeters(p1[0], p1[1], p2[0], p2[1]);
+
+    if (accumulated + segmentLen >= targetDistanceMeters) {
+      const remainingDistance = targetDistanceMeters - accumulated;
+      const t = segmentLen > 0 ? remainingDistance / segmentLen : 0;
+      const interpolatedPoint = lerpCoordinate(p1, p2, t);
+      const bearing = calculateBearing(p1[0], p1[1], p2[0], p2[1]);
+      return { point: interpolatedPoint, bearing, segmentIndex: i };
+    }
+
+    accumulated += segmentLen;
+  }
+
+  // If distance exceeds polyline length, return last point and final segment bearing
+  const lastIdx = polyline.length - 1;
+  const pPrev = polyline[lastIdx - 1];
+  const pLast = polyline[lastIdx];
+  const bearing = calculateBearing(pPrev[0], pPrev[1], pLast[0], pLast[1]);
+  return { point: pLast, bearing, segmentIndex: lastIdx };
+}
+
