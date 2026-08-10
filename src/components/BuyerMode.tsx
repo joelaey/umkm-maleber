@@ -1185,17 +1185,29 @@ export default function BuyerMode({
               );
             }
 
+            const combinedActivities = [
+              ...filteredOrders.map((ord) => ({
+                itemType: 'order' as const,
+                data: ord,
+                timestamp: new Date(ord.createdAt || 0).getTime()
+              })),
+              ...filteredRides.map((rd) => ({
+                itemType: 'ride' as const,
+                data: rd,
+                timestamp: new Date(rd.createdAt || 0).getTime()
+              }))
+            ].sort((a, b) => b.timestamp - a.timestamp);
+
             return (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Food Orders */}
-                {[...filteredOrders]
-                  .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                  .map((ord) => {
+                {combinedActivities.map((act) => {
+                  if (act.itemType === 'order') {
+                    const ord = act.data;
                     const isCancelled = ord.status === 'cancelled';
                     const isCompleted = ord.status === 'completed';
                     return (
                       <div
-                        key={ord.id}
+                        key={`order-${ord.id}`}
                         className={`p-5 rounded-3xl border shadow-sm space-y-4 transition-all cursor-pointer group ${
                           isCancelled || isCompleted
                             ? 'bg-zinc-50/70 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/60 opacity-60 grayscale-[20%]'
@@ -1294,17 +1306,13 @@ export default function BuyerMode({
                         </div>
                       </div>
                     );
-                  })}
-
-                {/* Ride Requests */}
-                {[...filteredRides]
-                  .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                  .map((rd) => {
+                  } else {
+                    const rd = act.data;
                     const isCancelled = rd.status === 'cancelled';
                     const isCompleted = rd.status === 'completed';
                     return (
                       <div
-                        key={rd.id}
+                        key={`ride-${rd.id}`}
                         className={`p-5 rounded-3xl border shadow-sm space-y-4 transition-all cursor-pointer group ${
                           isCancelled || isCompleted
                             ? 'bg-zinc-50/70 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/60 opacity-60 grayscale-[20%]'
@@ -1371,7 +1379,8 @@ export default function BuyerMode({
                         </div>
                       </div>
                     );
-                  })}
+                  }
+                })}
               </div>
             );
           })()}

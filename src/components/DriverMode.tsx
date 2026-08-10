@@ -647,74 +647,89 @@ export default function DriverMode({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* History Rides */}
-            {myHistoryRides.map((rd) => {
-              const isFinished = rd.status === 'completed' || rd.status === 'cancelled';
-              return (
-                <div
-                  key={rd.id}
-                  onClick={() => setSelectedJobDetail({ type: 'ride', data: rd })}
-                  className={`p-4 sm:p-5 rounded-3xl border shadow-sm space-y-3 transition-all cursor-pointer group ${
-                    isFinished
-                      ? 'opacity-60 grayscale-[15%] bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-zinc-800/60 hover:opacity-100 hover:grayscale-0'
-                      : 'bg-white dark:bg-zinc-900 border-emerald-500/80 shadow-md ring-1 ring-emerald-500/20'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
-                      OJEK PENUMPANG
-                    </span>
-                    <span className="font-black text-emerald-600 tabular-nums text-sm">Rp {rd.fare.toLocaleString('id-ID')}</span>
-                  </div>
-                  <div className="space-y-1 text-zinc-600 dark:text-zinc-300 text-xs">
-                    <p className="font-bold text-zinc-900 dark:text-white group-hover:text-emerald-600 transition-colors">Penumpang: {rd.passengerName}</p>
-                    <p className="truncate">Awal: {rd.pickupAddress}</p>
-                    <p className="truncate">Tujuan: {rd.destAddress}</p>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
-                    <span className={`font-extrabold px-2.5 py-0.5 rounded-full ${
-                      rd.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                    }`}>
-                      {rd.status === 'completed' ? 'Selesai' : 'Dibatalkan'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {(() => {
+              const combinedInlineHistory = [
+                ...myHistoryRides.map((rd) => ({
+                  itemType: 'ride' as const,
+                  data: rd,
+                  timestamp: new Date(rd.createdAt || 0).getTime()
+                })),
+                ...myHistoryOrders.map((ord) => ({
+                  itemType: 'order' as const,
+                  data: ord,
+                  timestamp: new Date(ord.createdAt || 0).getTime()
+                }))
+              ].sort((a, b) => b.timestamp - a.timestamp);
 
-            {/* History Orders */}
-            {myHistoryOrders.map((ord) => {
-              const isFinished = ord.status === 'completed' || ord.status === 'cancelled';
-              return (
-                <div
-                  key={ord.id}
-                  onClick={() => setSelectedJobDetail({ type: 'order', data: ord })}
-                  className={`p-4 sm:p-5 rounded-3xl border shadow-sm space-y-3 transition-all cursor-pointer group ${
-                    isFinished
-                      ? 'opacity-60 grayscale-[15%] bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-zinc-800/60 hover:opacity-100 hover:grayscale-0'
-                      : 'bg-white dark:bg-zinc-900 border-amber-500/80 shadow-md ring-1 ring-amber-500/20'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
-                      KURIR UMKM KULINER
-                    </span>
-                    <span className="font-black text-emerald-600 tabular-nums text-sm">Ongkir: Rp {ord.deliveryFee.toLocaleString('id-ID')}</span>
-                  </div>
-                  <div className="space-y-1 text-zinc-600 dark:text-zinc-300 text-xs">
-                    <p className="font-bold text-zinc-900 dark:text-white group-hover:text-emerald-600 transition-colors">Toko: {ord.storeName}</p>
-                    <p className="truncate">Penerima: {ord.buyerName} ({ord.deliveryAddress})</p>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
-                    <span className={`font-extrabold px-2.5 py-0.5 rounded-full ${
-                      ord.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                    }`}>
-                      {ord.status === 'completed' ? 'Selesai' : 'Dibatalkan'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+              return combinedInlineHistory.map((item) => {
+                if (item.itemType === 'ride') {
+                  const rd = item.data;
+                  const isFinished = rd.status === 'completed' || rd.status === 'cancelled';
+                  return (
+                    <div
+                      key={`ride-${rd.id}`}
+                      onClick={() => setSelectedJobDetail({ type: 'ride', data: rd })}
+                      className={`p-4 sm:p-5 rounded-3xl border shadow-sm space-y-3 transition-all cursor-pointer group ${
+                        isFinished
+                          ? 'opacity-60 grayscale-[15%] bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-zinc-800/60 hover:opacity-100 hover:grayscale-0'
+                          : 'bg-white dark:bg-zinc-900 border-emerald-500/80 shadow-md ring-1 ring-emerald-500/20'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                          OJEK PENUMPANG
+                        </span>
+                        <span className="font-black text-emerald-600 tabular-nums text-sm">Rp {rd.fare.toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="space-y-1 text-zinc-600 dark:text-zinc-300 text-xs">
+                        <p className="font-bold text-zinc-900 dark:text-white group-hover:text-emerald-600 transition-colors">Penumpang: {rd.passengerName}</p>
+                        <p className="truncate">Awal: {rd.pickupAddress}</p>
+                        <p className="truncate">Tujuan: {rd.destAddress}</p>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
+                        <span className={`font-extrabold px-2.5 py-0.5 rounded-full ${
+                          rd.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        }`}>
+                          {rd.status === 'completed' ? 'Selesai' : 'Dibatalkan'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  const ord = item.data;
+                  const isFinished = ord.status === 'completed' || ord.status === 'cancelled';
+                  return (
+                    <div
+                      key={`order-${ord.id}`}
+                      onClick={() => setSelectedJobDetail({ type: 'order', data: ord })}
+                      className={`p-4 sm:p-5 rounded-3xl border shadow-sm space-y-3 transition-all cursor-pointer group ${
+                        isFinished
+                          ? 'opacity-60 grayscale-[15%] bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-zinc-800/60 hover:opacity-100 hover:grayscale-0'
+                          : 'bg-white dark:bg-zinc-900 border-amber-500/80 shadow-md ring-1 ring-amber-500/20'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                          KURIR UMKM KULINER
+                        </span>
+                        <span className="font-black text-emerald-600 tabular-nums text-sm">Ongkir: Rp {ord.deliveryFee.toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="space-y-1 text-zinc-600 dark:text-zinc-300 text-xs">
+                        <p className="font-bold text-zinc-900 dark:text-white group-hover:text-emerald-600 transition-colors">Toko: {ord.storeName}</p>
+                        <p className="truncate">Penerima: {ord.buyerName} ({ord.deliveryAddress})</p>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
+                        <span className={`font-extrabold px-2.5 py-0.5 rounded-full ${
+                          ord.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        }`}>
+                          {ord.status === 'completed' ? 'Selesai' : 'Dibatalkan'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+              });
+            })()}
           </div>
         )}
       </div>
@@ -1060,61 +1075,83 @@ export default function DriverMode({
 
             {/* History Items Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-              {(showHistoryModal === 'all' || showHistoryModal === 'rides') &&
-                myHistoryRides.map((rd) => (
-                  <div
-                    key={rd.id}
-                    onClick={() => {
-                      setShowHistoryModal(null);
-                      setSelectedJobDetail({ type: 'ride', data: rd });
-                    }}
-                    className="p-3.5 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2 text-xs hover:border-emerald-500/50 transition-all cursor-pointer group"
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
-                        OJEK PENUMPANG
-                      </span>
-                      <span className="font-black text-emerald-600 tabular-nums text-sm">Rp {rd.fare.toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="space-y-1 text-zinc-600 dark:text-zinc-300">
-                      <p className="font-bold text-zinc-900 dark:text-white group-hover:text-emerald-600 transition-colors">Penumpang: {rd.passengerName}</p>
-                      <p className="truncate text-[11px]">Tujuan: {rd.destAddress}</p>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
-                      <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full">
-                        Selesai
-                      </span>
-                    </div>
-                  </div>
-                ))}
+              {(() => {
+                const modalRides = (showHistoryModal === 'all' || showHistoryModal === 'rides') ? myHistoryRides : [];
+                const modalOrders = (showHistoryModal === 'all' || showHistoryModal === 'orders') ? myHistoryOrders : [];
 
-              {(showHistoryModal === 'all' || showHistoryModal === 'orders') &&
-                myHistoryOrders.map((ord) => (
-                  <div
-                    key={ord.id}
-                    onClick={() => {
-                      setShowHistoryModal(null);
-                      setSelectedJobDetail({ type: 'order', data: ord });
-                    }}
-                    className="p-3.5 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2 text-xs hover:border-amber-500/50 transition-all cursor-pointer group"
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
-                        KURIR KULINER
-                      </span>
-                      <span className="font-black text-emerald-600 tabular-nums text-sm">Ongkir: Rp {(ord.deliveryFee || 5000).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="space-y-1 text-zinc-600 dark:text-zinc-300">
-                      <p className="font-bold text-zinc-900 dark:text-white group-hover:text-amber-600 transition-colors">Toko: {ord.storeName}</p>
-                      <p className="truncate text-[11px]">Penerima: {ord.buyerName}</p>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
-                      <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full">
-                        Selesai
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                const combinedModalHistory = [
+                  ...modalRides.map((rd) => ({
+                    itemType: 'ride' as const,
+                    data: rd,
+                    timestamp: new Date(rd.createdAt || 0).getTime()
+                  })),
+                  ...modalOrders.map((ord) => ({
+                    itemType: 'order' as const,
+                    data: ord,
+                    timestamp: new Date(ord.createdAt || 0).getTime()
+                  }))
+                ].sort((a, b) => b.timestamp - a.timestamp);
+
+                return combinedModalHistory.map((item) => {
+                  if (item.itemType === 'ride') {
+                    const rd = item.data;
+                    return (
+                      <div
+                        key={`modal-ride-${rd.id}`}
+                        onClick={() => {
+                          setShowHistoryModal(null);
+                          setSelectedJobDetail({ type: 'ride', data: rd });
+                        }}
+                        className="p-3.5 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2 text-xs hover:border-emerald-500/50 transition-all cursor-pointer group"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                            OJEK PENUMPANG
+                          </span>
+                          <span className="font-black text-emerald-600 tabular-nums text-sm">Rp {rd.fare.toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="space-y-1 text-zinc-600 dark:text-zinc-300">
+                          <p className="font-bold text-zinc-900 dark:text-white group-hover:text-emerald-600 transition-colors">Penumpang: {rd.passengerName}</p>
+                          <p className="truncate text-[11px]">Tujuan: {rd.destAddress}</p>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
+                          <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full">
+                            Selesai
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    const ord = item.data;
+                    return (
+                      <div
+                        key={`modal-order-${ord.id}`}
+                        onClick={() => {
+                          setShowHistoryModal(null);
+                          setSelectedJobDetail({ type: 'order', data: ord });
+                        }}
+                        className="p-3.5 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2 text-xs hover:border-amber-500/50 transition-all cursor-pointer group"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                            KURIR KULINER
+                          </span>
+                          <span className="font-black text-emerald-600 tabular-nums text-sm">Ongkir: Rp {(ord.deliveryFee || 5000).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="space-y-1 text-zinc-600 dark:text-zinc-300">
+                          <p className="font-bold text-zinc-900 dark:text-white group-hover:text-amber-600 transition-colors">Toko: {ord.storeName}</p>
+                          <p className="truncate text-[11px]">Penerima: {ord.buyerName}</p>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60 text-[10px]">
+                          <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full">
+                            Selesai
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                });
+              })()}
             </div>
           </div>
         </div>
