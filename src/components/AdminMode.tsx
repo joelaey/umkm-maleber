@@ -1212,7 +1212,7 @@ export default function AdminMode({
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-zinc-900 dark:text-white">
-                    Inspeksi Admin - {selectedAdminDetail.type === 'order' ? 'Pesanan UMKM' : 'Layanan Ojek'}
+                    Inspeksi {isPetugasDesa ? 'Petugas Desa' : 'Super Admin'} - {selectedAdminDetail.type === 'order' ? 'Pesanan UMKM' : 'Layanan Ojek'}
                   </h3>
                   <p className="text-xs text-zinc-500 font-mono">ID Sistem: #{selectedAdminDetail.data.id}</p>
                 </div>
@@ -1233,7 +1233,7 @@ export default function AdminMode({
                   🗺️ Peta Inspeksi Rute Perjalanan Sistem
                 </span>
                 <span className="text-[10px] font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-2.5 py-0.5 rounded-full">
-                  ● Super Admin Audit
+                  ● {isPetugasDesa ? 'Pemantauan Petugas Desa' : 'Super Admin Audit'}
                 </span>
               </div>
 
@@ -1295,37 +1295,39 @@ export default function AdminMode({
               )}
             </div>
 
-            {/* FINANCIAL AUDIT */}
-            <div className="bg-emerald-50 dark:bg-emerald-950/50 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-2 text-xs">
-              <h4 className="font-extrabold text-xs text-emerald-900 dark:text-emerald-200 uppercase tracking-wider mb-2">
-                💰 Audit Pembagian Alokasi Dana Sistem
-              </h4>
+            {/* FINANCIAL AUDIT (SUPER ADMIN ONLY) */}
+            {!isPetugasDesa && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/50 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-2 text-xs">
+                <h4 className="font-extrabold text-xs text-emerald-900 dark:text-emerald-200 uppercase tracking-wider mb-2">
+                  💰 Audit Pembagian Alokasi Dana Sistem (Khusus Super Admin)
+                </h4>
 
-              <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
-                <span>Nilai Transaksi Dasar:</span>
-                <span className="font-bold tabular-nums">
-                  Rp {(selectedAdminDetail.type === 'order'
-                    ? (selectedAdminDetail.data as Order).totalAmount
-                    : (selectedAdminDetail.data as RideRequest).fare
-                  ).toLocaleString('id-ID')}
-                </span>
-              </div>
+                <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                  <span>Nilai Transaksi Dasar:</span>
+                  <span className="font-bold tabular-nums">
+                    Rp {(selectedAdminDetail.type === 'order'
+                      ? (selectedAdminDetail.data as Order).totalAmount
+                      : (selectedAdminDetail.data as RideRequest).fare
+                    ).toLocaleString('id-ID')}
+                  </span>
+                </div>
 
-              <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
-                <span>Biaya Layanan Platform Kas Desa:</span>
-                <span className="font-bold tabular-nums">Rp 1.000</span>
-              </div>
+                <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+                  <span>Biaya Layanan Platform Kas Desa:</span>
+                  <span className="font-bold tabular-nums">Rp 1.000</span>
+                </div>
 
-              <div className="flex justify-between text-base font-black text-emerald-900 dark:text-emerald-200 pt-2 border-t border-emerald-200 dark:border-emerald-800">
-                <span>Total Omzet Transaksi Masuk Sistem</span>
-                <span className="tabular-nums">
-                  Rp {(selectedAdminDetail.type === 'order'
-                    ? (selectedAdminDetail.data as Order).totalAmount + 1000
-                    : (selectedAdminDetail.data as RideRequest).fare + 1000
-                  ).toLocaleString('id-ID')}
-                </span>
+                <div className="flex justify-between text-base font-black text-emerald-900 dark:text-emerald-200 pt-2 border-t border-emerald-200 dark:border-emerald-800">
+                  <span>Total Omzet Transaksi Masuk Sistem</span>
+                  <span className="tabular-nums">
+                    Rp {(selectedAdminDetail.type === 'order'
+                      ? (selectedAdminDetail.data as Order).totalAmount + 1000
+                      : (selectedAdminDetail.data as RideRequest).fare + 1000
+                    ).toLocaleString('id-ID')}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

@@ -709,6 +709,19 @@ function LeafletMapView({
         });
         group.addLayer(outlineLine);
 
+        // Delayed fitBounds and invalidateSize to ensure modal rendering is finished & camera centered on route
+        setTimeout(() => {
+          if (map && map._container && map._leaflet_id && polylineCoords.length > 0) {
+            try {
+              map.invalidateSize();
+              const bounds = L.latLngBounds(polylineCoords);
+              map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 });
+            } catch (err) {
+              // Safely handle unmounted DOM container cleanup
+            }
+          }
+        }, 150);
+
         if (isHistoricalView) {
           // STATIC HISTORICAL VIEW: Lock map interactions & draw single solid completed route line
           const solidHistoricalLine = L.polyline(polylineCoords, {
@@ -720,19 +733,6 @@ function LeafletMapView({
           });
 
           group.addLayer(solidHistoricalLine);
-
-          // Delayed fitBounds and invalidateSize to ensure modal rendering is finished & camera centered
-          setTimeout(() => {
-            if (map && map._container && map._leaflet_id) {
-              try {
-                map.invalidateSize();
-                const bounds = L.latLngBounds(polylineCoords);
-                map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-              } catch (err) {
-                // Safely handle unmounted DOM container cleanup
-              }
-            }
-          }, 150);
 
           // Disable dragging/zooming for static snapshot effect
           map.dragging.disable();
