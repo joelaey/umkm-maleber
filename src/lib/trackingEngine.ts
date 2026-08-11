@@ -23,7 +23,7 @@ export interface EngineState {
 
 /**
  * Predictive Dead-Reckoning Live Tracking Engine.
- * Handles 20-second GPS update intervals smoothly using Exponential Moving Average (EMA)
+ * Handles 3-second GPS update intervals smoothly using Exponential Moving Average (EMA)
  * speed estimation, polyline map matching, and 60 FPS soft-nudge recalibration.
  */
 export class PredictiveTrackingEngine {
@@ -48,9 +48,9 @@ export class PredictiveTrackingEngine {
   private recalibrationStartPos: [number, number] = [0, 0];
   private recalibrationTargetPos: [number, number] = [0, 0];
   private recalibrationProgress: number = 1.0; // 0.0 to 1.0
-  private recalibrationDurationSeconds: number = 1.5; // Nudge over 1.5 seconds
+  private recalibrationDurationSeconds: number = 1.0; // Nudge over 1.0 second for 3s pings
 
-  constructor(polyline: [number, number][], pingIntervalSeconds = 20) {
+  constructor(polyline: [number, number][], pingIntervalSeconds = 3) {
     this.polyline = polyline || [];
     this.totalLengthMeters = getPolylineLengthMeters(this.polyline);
     this.pingIntervalSeconds = pingIntervalSeconds;

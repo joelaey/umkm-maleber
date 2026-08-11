@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Store, DriverInfo, Order, RideRequest, UserRole, PlacePOI } from '@/types';
+import { Store, DriverInfo, Order, RideRequest, UserRole, PlacePOI, PasswordResetRequest } from '@/types';
 import MapComponent from './MapComponent';
+import AvatarCropModal from './AvatarCropModal';
 import { INITIAL_PLACES } from '@/lib/mockData';
-import { ShieldCheck, Store as StoreIcon, Bike, Users, FileText, CheckCircle2, TrendingUp, Layers, Plus, UserCheck, ShieldAlert, X, Building2, Crown, Lock, UserPlus, Key, Eye, Radio, Activity, MapPin, Sparkles, Edit, Trash2 } from 'lucide-react';
+import { ShieldCheck, Store as StoreIcon, Bike, Users, FileText, CheckCircle2, TrendingUp, Layers, Plus, UserCheck, ShieldAlert, X, Building2, Crown, Lock, UserPlus, Key, Eye, Radio, Activity, MapPin, Sparkles, Edit, Trash2, Send, Camera, Upload } from 'lucide-react';
 import { calculateOrderFees, calculateRideFees, SELLER_COMMISSION_RATE, DRIVER_COMMISSION_RATE, BUYER_APP_FEE, formatRupiah } from '@/lib/feeCalculator';
 
 interface AdminModeProps {
@@ -15,10 +16,12 @@ interface AdminModeProps {
   places?: PlacePOI[];
   isPetugasDesa?: boolean;
   users?: any[];
+  resetRequests?: PasswordResetRequest[];
   onAddStoreByAdmin?: (newStore: Store) => void;
   onAddDriverByAdmin?: (newDriver: DriverInfo) => void;
   onDeleteUserByAdmin?: (userId: string, email?: string) => void;
   onSwitchRoleView?: (role: UserRole) => void;
+  onRefreshData?: () => void;
 }
 
 export default function AdminMode({
@@ -29,16 +32,59 @@ export default function AdminMode({
   places = INITIAL_PLACES,
   isPetugasDesa = true,
   users = [],
+  resetRequests = [],
   onAddStoreByAdmin,
   onAddDriverByAdmin,
   onDeleteUserByAdmin,
-  onSwitchRoleView
+  onSwitchRoleView,
+  onRefreshData
 }: AdminModeProps) {
-  const [activeAdminTab, setActiveAdminTab] = useState<'monitoring' | 'management' | 'superadmin'>('monitoring');
+  const [activeAdminTab, setActiveAdminTab] = useState<'monitoring' | 'management' | 'superadmin' | 'reset_requests'>('monitoring');
   const [selectedAdminDetail, setSelectedAdminDetail] = useState<{
     type: 'order' | 'ride';
     data: Order | RideRequest;
   } | null>(null);
+
+  // Password Reset Modal State
+  const [selectedResetReq, setSelectedResetReq] = useState<PasswordResetRequest | null>(null);
+  const [newResetPassword, setNewResetPassword] = useState('maleber123');
+  const [adminReplyText, setAdminReplyText] = useState('Kata sandi akun Anda telah di-reset oleh Super Admin menjadi: maleber123. Silakan login kembali!');
+  const [resolvingReset, setResolvingReset] = useState(false);
+
+  // Handle Execute Password Reset Submit
+  const handleExecutePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedResetReq) return;
+    setResolvingReset(true);
+
+    try {
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'resolve_password_reset',
+          data: {
+            requestId: selectedResetReq.id,
+            userId: selectedResetReq.userId,
+            userEmail: selectedResetReq.userEmail,
+            userPhone: selectedResetReq.userPhone,
+            newPassword: newResetPassword,
+            adminReply: adminReplyText
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setSelectedResetReq(null);
+        onRefreshData?.();
+      }
+    } catch (err) {
+      console.error('Failed to resolve password reset:', err);
+    } finally {
+      setResolvingReset(false);
+    }
+  };
   
   // Modals
   const [showAddStoreModal, setShowAddStoreModal] = useState(false);
@@ -57,11 +103,13 @@ export default function AdminMode({
   const [phone, setPhone] = useState('');
   const [category, setCategory] = useState<Store['category']>('Kuliner');
   const [address, setAddress] = useState('');
-  const [dusun, setDusun] = useState('Manis');
+  const [dusun, setDusun] = useState('');
   const [rt, setRt] = useState('01');
   const [rw, setRw] = useState('01');
   const [storeCoords, setStoreCoords] = useState<{ lat: number; lng: number }>({ lat: -6.8175, lng: 107.1878 });
   const [showStoreMapPicker, setShowStoreMapPicker] = useState(false);
+  const [storeImage, setStoreImage] = useState<string>('');
+  const [showCropStoreModal, setShowCropStoreModal] = useState<boolean>(false);
 
   // New Driver Form State
   const [driverName, setDriverName] = useState('');
@@ -117,40 +165,42 @@ export default function AdminMode({
     };
     setAllUsers((prev) => [created, ...prev]);
 
-    // Push to Supabase PostgreSQL via API
     fetch('/api/db', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'create_profile', data: created })
-    }).catch((err) => console.warn('Failed to push created user to Supabase:', err));
+      body: JSON.stringify({
+        action: 'create_profile',
+        data: created
+      })
+    }).catch((err) => console.warn('Failed to save profile to Supabase:', err));
 
     setNewUserName('');
     setNewUserEmail('');
     setNewUserPhone('');
+    setNewUserRole('admin');
     setShowAddUserModal(false);
   };
 
   const handleSaveEditUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUser) return;
-    const updated = { ...editingUser, name: editName, email: editEmail, phone: editPhone, role: editRole };
-    setAllUsers((prev) =>
-      prev.map((u) => (u.id === editingUser.id ? updated : u))
-    );
+    if (!editingUser || !editName) return;
 
-    // Push update to Supabase PostgreSQL via API
+    const updated = {
+      ...editingUser,
+      name: editName,
+      email: editEmail,
+      phone: editPhone,
+      role: editRole
+    };
+
+    setAllUsers((prev) => prev.map((u) => (u.id === editingUser.id ? updated : u)));
+
     fetch('/api/db', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'update_profile',
-        data: {
-          id: editingUser.id,
-          name: editName,
-          email: editEmail,
-          phone: editPhone,
-          role: editRole
-        }
+        data: updated
       })
     }).catch((err) => console.warn('Failed to update user in Supabase:', err));
 
@@ -170,7 +220,6 @@ export default function AdminMode({
       onDeleteUserByAdmin(targetId, targetEmail);
     }
 
-    // Push delete to Supabase PostgreSQL via API
     fetch('/api/db', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -194,13 +243,12 @@ export default function AdminMode({
   const activeOrdersCount = orders.filter((o) => o.status !== 'completed' && o.status !== 'cancelled').length;
   const onlineDriversCount = drivers.filter((d) => d.isOnline).length;
 
-  // Platform Revenue Calculation
-  const completedOrders = orders.filter(o => o.status === 'completed');
-  const completedRides = rides.filter(r => r.status === 'completed');
+  const completedOrders = orders.filter((o) => o.status === 'completed');
+  const completedRides = rides.filter((r) => r.status === 'completed');
 
-  const platformRevenueFromOrders = completedOrders.reduce((acc, ord) => {
-    const productSubtotal = ord.totalAmount - (ord.deliveryFee || 5000);
-    const fees = calculateOrderFees(productSubtotal, ord.deliveryFee || 5000);
+  const platformRevenueFromOrders = completedOrders.reduce((acc, order) => {
+    const productSubtotal = order.totalAmount - (order.deliveryFee || 5000);
+    const fees = calculateOrderFees(productSubtotal, order.deliveryFee || 5000);
     return acc + fees.platformRevenue;
   }, 0);
 
@@ -227,7 +275,7 @@ export default function AdminMode({
       lat: storeCoords.lat,
       lng: storeCoords.lng,
       isActive: true,
-      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
+      image: storeImage || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
       description: `Toko UMKM ${category} di Dusun ${dusun}, RT ${rt}/RW ${rw}, Desa Maleber`,
       rating: 0,
       reviewCount: 0
@@ -239,9 +287,10 @@ export default function AdminMode({
     setOwnerName('');
     setPhone('');
     setAddress('');
-    setDusun('Manis');
+    setDusun('');
     setRt('01');
     setRw('01');
+    setStoreImage('');
     setShowAddStoreModal(false);
   };
 
@@ -249,11 +298,15 @@ export default function AdminMode({
     e.preventDefault();
     if (!driverName || !vehicleNumber) return;
 
+    const validId = typeof crypto !== 'undefined' && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : `00000000-0000-4000-8000-${Math.floor(Math.random()*1000000000000).toString().padStart(12, '0')}`;
+
     const newDriver: DriverInfo = {
-      id: `drv-${Date.now().toString().slice(-4)}`,
+      id: validId,
       name: driverName,
       phone: driverPhone || '081399887766',
-      vehicleModel: vehicleModel || 'Honda Beat Hitam',
+      vehicleModel: vehicleModel || 'Motor Ojek Maleber',
       vehicleNumber: vehicleNumber || 'F 1234 MBR',
       isOnline: true,
       lat: -6.8155 + (Math.random() - 0.5) * 0.004,
@@ -400,18 +453,37 @@ export default function AdminMode({
           </button>
 
           {!isPetugasDesa && (
-            <button
-              onClick={() => setActiveAdminTab('superadmin')}
-              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 snap-start ${
-                activeAdminTab === 'superadmin'
-                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
-                  : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-              }`}
-            >
-              <Crown className="w-4 h-4 shrink-0 text-amber-300" />
-              <span>Hak Akses Petugas</span>
-              <span className="hidden md:inline">&nbsp;(Super Admin)</span>
-            </button>
+            <>
+              <button
+                onClick={() => setActiveAdminTab('superadmin')}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 snap-start ${
+                  activeAdminTab === 'superadmin'
+                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                    : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                }`}
+              >
+                <Crown className="w-4 h-4 shrink-0 text-amber-300" />
+                <span>Hak Akses Petugas</span>
+                <span className="hidden md:inline">&nbsp;(Super Admin)</span>
+              </button>
+
+              <button
+                onClick={() => setActiveAdminTab('reset_requests')}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 snap-start ${
+                  activeAdminTab === 'reset_requests'
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20'
+                    : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                }`}
+              >
+                <Key className="w-4 h-4 shrink-0 text-rose-300" />
+                <span>Reset Password</span>
+                {resetRequests.filter((r) => r.status === 'pending').length > 0 && (
+                  <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">
+                    {resetRequests.filter((r) => r.status === 'pending').length} Baru
+                  </span>
+                )}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -875,6 +947,121 @@ export default function AdminMode({
         </div>
       )}
 
+      {/* TAB 4: LAPORAN RESET PASSWORD (SUPER ADMIN ONLY) */}
+      {activeAdminTab === 'reset_requests' && !isPetugasDesa && (
+        <div className="space-y-4 sm:space-y-6">
+          <div className="bg-gradient-to-r from-rose-950 via-rose-900 to-zinc-950 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-rose-500/30 shrink-0">
+                🔑
+              </div>
+              <div>
+                <h3 className="font-extrabold text-lg sm:text-xl">Laporan Reset Password &amp; Keamanan Akun</h3>
+                <p className="text-xs text-rose-200 mt-0.5">Kelola laporan lupa kata sandi dari pengguna, eksekusi reset dengan enkripsi database, dan balas pesan langsung ke user.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+              <p className="text-xs text-zinc-500 font-bold">Total Laporan Masuk</p>
+              <h4 className="text-2xl font-black text-zinc-900 dark:text-white mt-1">{resetRequests.length} Laporan</h4>
+            </div>
+            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-rose-200 dark:border-rose-800/60 shadow-sm">
+              <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">Perlu Diproses (Pending)</p>
+              <h4 className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
+                {resetRequests.filter((r) => r.status === 'pending').length} User
+              </h4>
+            </div>
+            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 shadow-sm">
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">Selesai Direset</p>
+              <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {resetRequests.filter((r) => r.status === 'resolved').length} User
+              </h4>
+            </div>
+          </div>
+
+          {/* Request Cards Grid */}
+          <div className="bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+            <h4 className="font-extrabold text-sm text-zinc-900 dark:text-white flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <Key className="w-4 h-4 text-rose-500" />
+              Daftar Laporan Lupa Kata Sandi Akun Pengguna
+            </h4>
+
+            {resetRequests.length === 0 ? (
+              <div className="text-center py-10 text-zinc-400 text-xs font-bold">
+                Belum ada laporan reset kata sandi dari pengguna.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {resetRequests.map((req) => {
+                  const isPending = req.status === 'pending';
+                  return (
+                    <div
+                      key={req.id}
+                      className={`p-4 rounded-2xl border shadow-sm space-y-3 transition-all ${
+                        isPending
+                          ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-300 dark:border-rose-800'
+                          : 'bg-zinc-50 dark:bg-zinc-800/40 border-zinc-200/80 dark:border-zinc-800 opacity-70'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-rose-300/40">
+                            🔑 LAPORAN RESET PASSWORD
+                          </span>
+                          <h5 className="font-extrabold text-sm text-zinc-900 dark:text-white mt-1.5">
+                            {req.userName || 'Pengguna Maleber'}
+                          </h5>
+                          <p className="text-xs text-zinc-500 font-mono">
+                            {req.userEmail || req.userPhone || 'Kontak tidak tertera'}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
+                          isPending
+                            ? 'bg-rose-500 text-white animate-pulse'
+                            : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                        }`}>
+                          {isPending ? 'PERLU DIPROSES' : 'SELESAI DIRESET'}
+                        </span>
+                      </div>
+
+                      <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200/60 dark:border-zinc-700/60 text-xs space-y-1">
+                        <p className="font-bold text-zinc-700 dark:text-zinc-300 text-[11px]">💬 Alasan / Pesan Pengguna:</p>
+                        <p className="text-zinc-600 dark:text-zinc-400 italic">{req.reason}</p>
+                      </div>
+
+                      {!isPending && req.adminReply && (
+                        <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs space-y-1">
+                          <p className="font-bold text-emerald-800 dark:text-emerald-300 text-[11px]">✅ Balasan Super Admin:</p>
+                          <p className="text-emerald-700 dark:text-emerald-400">{req.adminReply}</p>
+                        </div>
+                      )}
+
+                      {isPending && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedResetReq(req);
+                            setNewResetPassword('maleber123');
+                            setAdminReplyText(`Halo ${req.userName || 'Warga'}, kata sandi akun Anda telah berhasil kami reset menjadi: maleber123. Silakan login kembali dan jaga kerahasiaan kata sandi Anda!`);
+                          }}
+                          className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Key className="w-3.5 h-3.5" />
+                          Reset Password &amp; Balas Pesan User ➔
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* MODAL PETUGAS DESA: DAFTARKAN STORE BARU */}
       {showAddStoreModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 modal-overlay overflow-y-auto" onClick={() => setShowAddStoreModal(false)}>
@@ -943,16 +1130,13 @@ export default function AdminMode({
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Dusun</label>
-                  <select
+                  <input
+                    type="text"
+                    placeholder="Contoh: Manis"
                     value={dusun}
                     onChange={(e) => setDusun(e.target.value)}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-2.5 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white mt-1"
-                  >
-                    <option value="Manis">Dusun Manis</option>
-                    <option value="Pahing">Dusun Pahing</option>
-                    <option value="Kliwon">Dusun Kliwon</option>
-                    <option value="Wage">Dusun Wage</option>
-                  </select>
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white mt-1"
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">RT</label>
@@ -986,6 +1170,30 @@ export default function AdminMode({
                   onChange={(e) => setAddress(e.target.value)}
                   className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white mt-1"
                 />
+              </div>
+
+              {/* Foto Toko UMKM Upload */}
+              <div>
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Foto Banner / Profil Toko UMKM
+                </label>
+                <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-800/80 p-2.5 rounded-2xl border border-zinc-200 dark:border-zinc-700">
+                  <img
+                    src={storeImage || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'}
+                    alt="Preview Toko"
+                    className="w-14 h-14 rounded-xl object-cover border border-zinc-200 dark:border-zinc-700 shrink-0"
+                  />
+                  <div className="flex-1 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowCropStoreModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 text-xs font-bold hover:bg-amber-200 cursor-pointer border border-amber-300/40"
+                    >
+                      <Camera className="w-3.5 h-3.5" /> Pilih &amp; Potong Foto Toko
+                    </button>
+                    <p className="text-[10px] text-zinc-400">Pilih foto spanduk atau banner toko fisik UMKM dari galeri.</p>
+                  </div>
+                </div>
               </div>
 
               {/* Drop Pin Store Location Picker */}
@@ -1535,6 +1743,92 @@ export default function AdminMode({
           </div>
         </div>
       )}
+
+      {/* MODAL SUPER ADMIN: EKSEKUSI RESET PASSWORD & BALAS PESAN */}
+      {selectedResetReq && (
+        <div className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 modal-overlay overflow-y-auto" onClick={() => setSelectedResetReq(null)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl max-w-lg w-full p-4 sm:p-6 space-y-4 shadow-2xl border border-zinc-200 dark:border-zinc-800 modal-content relative my-auto max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center font-bold text-lg">
+                  🔑
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-zinc-900 dark:text-white">Eksekusi Reset Password User</h3>
+                  <p className="text-xs text-zinc-500 font-mono">User: {selectedResetReq.userName} ({selectedResetReq.userEmail || selectedResetReq.userPhone})</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedResetReq(null)} className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-bold flex items-center justify-center cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleExecutePasswordReset} className="space-y-4">
+              <div className="bg-amber-50 dark:bg-amber-950/40 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-800 text-xs space-y-1 text-amber-800 dark:text-amber-300">
+                <p className="font-bold">📩 Pesan / Keluhan Laporan User:</p>
+                <p className="italic">&quot;{selectedResetReq.reason}&quot;</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-extrabold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  🔑 Kata Sandi Baru (Otomatis Dihash &amp; Di-Enkripsi SHA-256 di Database):
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newResetPassword}
+                  onChange={(e) => setNewResetPassword(e.target.value)}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-extrabold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  💬 Pesan Balasan Super Admin ke Chat Inbox User:
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={adminReplyText}
+                  onChange={(e) => setAdminReplyText(e.target.value)}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-xs font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                />
+              </div>
+
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
+                🛡️ Mengklik tombol di bawah akan me-reset kata sandi user di database dengan enkripsi SHA-256 dan secara otomatis mengirimi user balasan di kotak pesan.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedResetReq(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={resolvingReset}
+                  className="px-5 py-2 rounded-xl text-xs font-black text-white bg-rose-600 hover:bg-rose-700 cursor-pointer shadow-md flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {resolvingReset ? 'Memproses Reset...' : '✓ Eksekusi Reset (Enkripsi DB) & Kirim Balasan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CROP FOTO TOKO UNTUK PENDAFTARAN UMKM BARU */}
+      <AvatarCropModal
+        isOpen={showCropStoreModal}
+        onClose={() => setShowCropStoreModal(false)}
+        initialImage={storeImage || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'}
+        onCropComplete={(croppedDataUrl) => {
+          setStoreImage(croppedDataUrl);
+          setShowCropStoreModal(false);
+        }}
+      />
 
     </div>
   );

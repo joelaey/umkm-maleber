@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { Store, Product, Order, Review, UserRole, ProductVariantGroup } from '@/types';
-import { Store as StoreIcon, Package, DollarSign, Clock, Plus, CheckCircle, AlertCircle, ToggleLeft, ToggleRight, Edit, Trash2, Image as ImageIcon, Star, Upload, X, Eye, MessageSquare } from 'lucide-react';
+import { Store as StoreIcon, Package, DollarSign, Clock, Plus, CheckCircle, AlertCircle, ToggleLeft, ToggleRight, Edit, Trash2, Image as ImageIcon, Star, Upload, X, Eye, MessageSquare, Camera } from 'lucide-react';
 import { calculateOrderFees, SELLER_COMMISSION_RATE, formatRupiah } from '@/lib/feeCalculator';
+import AvatarCropModal from './AvatarCropModal';
 
 interface SellerModeProps {
   store: Store;
@@ -19,6 +20,7 @@ interface SellerModeProps {
     options?: { orderId?: string; rideId?: string; contextTitle?: string }
   ) => void;
   onToggleStoreStatus?: (storeId: string, isActive: boolean) => void;
+  onUpdateStore?: (updatedStore: Store) => void;
 }
 
 export default function SellerMode({
@@ -31,13 +33,15 @@ export default function SellerMode({
   onToggleProductAvailability,
   onSelectProduct,
   onOpenChat,
-  onToggleStoreStatus
+  onToggleStoreStatus,
+  onUpdateStore
 }: SellerModeProps) {
   const [selectedOrderModal, setSelectedOrderModal] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState<'orders' | 'products'>('orders');
   const [orderSubTab, setOrderSubTab] = useState<'ongoing' | 'history'>('ongoing');
   const [isStoreOpen, setIsStoreOpen] = useState(store.isActive);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [showCropStoreModal, setShowCropStoreModal] = useState(false);
 
   // New product form state with UP TO 10 PHOTOS (Shopee style)
   const [name, setName] = useState('');
@@ -196,11 +200,21 @@ export default function SellerMode({
       {/* Merchant Header Card */}
       <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <img
-            src={store.image}
-            alt={store.name}
-            className="w-16 h-16 rounded-2xl object-cover border border-zinc-200 dark:border-zinc-700"
-          />
+          <div className="relative group shrink-0">
+            <img
+              src={store.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'}
+              alt={store.name}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border border-zinc-200 dark:border-zinc-700 shadow-sm"
+            />
+            <button
+              onClick={() => setShowCropStoreModal(true)}
+              className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-extrabold gap-0.5 cursor-pointer"
+              title="Ubah Foto Toko UMKM"
+            >
+              <Camera className="w-5 h-5 text-white" />
+              <span>Ubah Foto</span>
+            </button>
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-black text-zinc-900 dark:text-white">
@@ -1039,6 +1053,28 @@ export default function SellerMode({
           </div>
         </div>
       )}
+
+      {/* MODAL POTONG / UBAH FOTO TOKO UMKM */}
+      <AvatarCropModal
+        isOpen={showCropStoreModal}
+        onClose={() => setShowCropStoreModal(false)}
+        initialImage={store.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'}
+        onCropComplete={async (croppedUrl) => {
+          const updated = { ...store, image: croppedUrl };
+          if (onUpdateStore) onUpdateStore(updated);
+          try {
+            await fetch('/api/db', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'update_store',
+                data: { id: store.id, image: croppedUrl }
+              })
+            });
+          } catch (e) {}
+          setShowCropStoreModal(false);
+        }}
+      />
 
     </div>
   );

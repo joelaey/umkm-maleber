@@ -1,4 +1,5 @@
 import { Store, Product, DriverInfo, Order, RideRequest, UserProfile, Review, PlacePOI } from '@/types';
+import { DEFAULT_BLANK_AVATAR } from '@/components/AvatarCropModal';
 
 // Desa Maleber, Kecamatan Karangtengah, Kabupaten Cianjur Coordinates
 export const MALEBER_CENTER = {
@@ -8,7 +9,7 @@ export const MALEBER_CENTER = {
 };
 
 export const INITIAL_USERS: UserProfile[] = [
-  // 1 SUPER ADMIN
+  // 2 SUPER ADMINS
   {
     id: 'a1111111-1111-4111-8111-111111111111',
     name: 'Super Admin Maleber',
@@ -16,7 +17,15 @@ export const INITIAL_USERS: UserProfile[] = [
     phone: '081100000001',
     role: 'superadmin',
     password: 'maleber123',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+    avatar: DEFAULT_BLANK_AVATAR
+  },
+  {
+    id: 'a1111111-1111-4111-8111-111111111112',
+    name: 'super admin j.',
+    email: 'j@superadmin.com',
+    role: 'superadmin',
+    password: 'a11101977',
+    avatar: DEFAULT_BLANK_AVATAR
   },
   // 2 PETUGAS DESA
   {
@@ -26,7 +35,7 @@ export const INITIAL_USERS: UserProfile[] = [
     phone: '081100000002',
     role: 'admin',
     password: 'maleber123',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80'
+    avatar: DEFAULT_BLANK_AVATAR
   },
   {
     id: 'a3333333-3333-4333-8333-333333333333',
@@ -35,7 +44,7 @@ export const INITIAL_USERS: UserProfile[] = [
     phone: '081100000003',
     role: 'admin',
     password: 'maleber123',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80'
+    avatar: DEFAULT_BLANK_AVATAR
   },
   // 3 PENJUAL UMKM
   {
@@ -46,7 +55,7 @@ export const INITIAL_USERS: UserProfile[] = [
     role: 'seller',
     password: 'maleber123',
     storeName: 'Warung Liwet Khas Cianjur Ibu Imas',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80'
+    avatar: DEFAULT_BLANK_AVATAR
   },
   {
     id: 'b2222222-2222-4222-8222-222222222222',
@@ -55,7 +64,7 @@ export const INITIAL_USERS: UserProfile[] = [
     phone: '081234567892',
     role: 'seller',
     storeName: 'Oleh-Oleh Manisan & Tauco Cap Maleber',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80'
+    avatar: DEFAULT_BLANK_AVATAR
   },
   {
     id: 'b3333333-3333-4333-8333-333333333333',
@@ -64,7 +73,7 @@ export const INITIAL_USERS: UserProfile[] = [
     phone: '081234567893',
     role: 'seller',
     storeName: 'Tani Makmur Beras Pandanwangi Maleber',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
+    avatar: DEFAULT_BLANK_AVATAR
   },
   // 3 DRIVER OJEK ONLINE DESA
   {
@@ -75,7 +84,7 @@ export const INITIAL_USERS: UserProfile[] = [
     role: 'driver',
     password: 'maleber123',
     vehicleInfo: 'Honda Vario 160 (F 4521 YZ)',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80'
+    avatar: DEFAULT_BLANK_AVATAR
   },
   {
     id: 'c2222222-2222-4222-8222-222222222222',
@@ -85,7 +94,7 @@ export const INITIAL_USERS: UserProfile[] = [
     role: 'driver',
     password: 'maleber123',
     vehicleInfo: 'Yamaha NMAX 155 (F 3312 WX)',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80'
+    avatar: DEFAULT_BLANK_AVATAR
   },
   {
     id: 'c3333333-3333-4333-8333-333333333333',
@@ -95,7 +104,7 @@ export const INITIAL_USERS: UserProfile[] = [
     role: 'driver',
     password: 'maleber123',
     vehicleInfo: 'Honda Beat FI (F 2104 ZY)',
-    avatar: ''
+    avatar: DEFAULT_BLANK_AVATAR
   },
   // 3 PEMBELI WARGA MALEBER
   {

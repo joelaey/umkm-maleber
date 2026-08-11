@@ -1,10 +1,10 @@
-'use client';
-
 import React, { useState } from 'react';
 import { UserRole, UserProfile, SavedAddress } from '@/types';
 import { INITIAL_USERS } from '@/lib/mockData';
-import { User, Lock, Phone, Mail, AlertCircle, ArrowRight, X, CheckCircle2, ShieldCheck, MessageSquare, UserCheck, CheckCircle, Map as MapIcon, Crosshair } from 'lucide-react';
+import { verifyPassword } from '@/lib/cryptoUtils';
+import { User, Lock, Phone, Mail, AlertCircle, ArrowRight, X, CheckCircle2, ShieldCheck, MessageSquare, UserCheck, CheckCircle, Map as MapIcon, Crosshair, KeyRound, Crop, Camera } from 'lucide-react';
 import MapComponent from './MapComponent';
+import AvatarCropModal, { DEFAULT_BLANK_AVATAR } from './AvatarCropModal';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -21,11 +21,17 @@ export default function AuthModal({
   initialRole = 'buyer',
   onAuthSuccess
 }: AuthModalProps) {
-  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
 
   // Login Form State
   const [identifier, setIdentifier] = useState(''); // Can be Email or WhatsApp phone
   const [loginPassword, setLoginPassword] = useState('');
+
+  // Password Reset Request State
+  const [resetContact, setResetContact] = useState('');
+  const [resetReason, setResetReason] = useState('');
+  const [resetSuccessMsg, setResetSuccessMsg] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Register Form State
   const [name, setName] = useState('');
@@ -43,7 +49,8 @@ export default function AuthModal({
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '', '', '']);
 
   // Step 4: Complete Profile Details State
-  const [avatarUrl, setAvatarUrl] = useState('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80');
+  const [avatarUrl, setAvatarUrl] = useState<string>(DEFAULT_BLANK_AVATAR);
+  const [showCropModal, setShowCropModal] = useState<boolean>(false);
   const [homeAddress, setHomeAddress] = useState('RT 02 / RW 01 Dusun Manis, Desa Maleber');
   const [officeAddress, setOfficeAddress] = useState('Balai Desa Maleber, Kec. Maleber');
   const [favoriteAddress, setFavoriteAddress] = useState('Pos Ronda Dusun Pahing');
@@ -110,7 +117,7 @@ export default function AuthModal({
         return;
       }
 
-      if (foundUser.password && loginPassword !== foundUser.password) {
+      if (foundUser.password && !verifyPassword(loginPassword, foundUser.password)) {
         setErrorMsg('Kata sandi yang Anda masukkan salah. Silakan coba lagi!');
         setLoading(false);
         return;
@@ -122,6 +129,83 @@ export default function AuthModal({
       setErrorMsg('Gagal memproses autentikasi. Silakan coba kembali!');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle Submit Forgot Password Request
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setErrorMsg('');
+    setResetSuccessMsg('');
+
+    const cleanContact = resetContact.trim().toLowerCase();
+    const cleanPhoneContact = resetContact.replace(/[^0-9]/g, '');
+
+    if (!cleanContact) {
+      setErrorMsg('Mohon masukkan alamat email atau nomor WhatsApp terdaftar Anda!');
+      setResetLoading(false);
+      return;
+    }
+
+    // 1. Verify if user account exists in INITIAL_USERS or Supabase DB
+    let matchedUser: UserProfile | undefined = INITIAL_USERS.find((u) => {
+      const emailMatch = u.email?.toLowerCase() === cleanContact;
+      const phoneMatch = cleanPhoneContact.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneContact;
+      return emailMatch || phoneMatch;
+    });
+
+    if (!matchedUser) {
+      try {
+        const dbRes = await fetch('/api/db');
+        const dbData = await dbRes.json();
+        if (dbData.success && dbData.users) {
+          matchedUser = dbData.users.find((u: UserProfile) => {
+            const emailMatch = u.email?.toLowerCase() === cleanContact;
+            const phoneMatch = cleanPhoneContact.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneContact;
+            return emailMatch || phoneMatch;
+          });
+        }
+      } catch (e) {}
+    }
+
+    // Stop execution & display error if email / phone is not registered in the system
+    if (!matchedUser) {
+      setErrorMsg(`Akun email atau nomor WhatsApp "${resetContact}" TIDAK TERDAFTAR di sistem Desa Maleber. Silakan periksa kembali!`);
+      setResetLoading(false);
+      return;
+    }
+
+    // 2. Account verified -> Post reset request to Super Admin
+    try {
+      const isEmail = cleanContact.includes('@');
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'request_password_reset',
+          data: {
+            userId: matchedUser.id,
+            userName: matchedUser.name,
+            userEmail: matchedUser.email || (isEmail ? cleanContact : null),
+            userPhone: matchedUser.phone || (!isEmail ? cleanContact : null),
+            reason: resetReason.trim() || 'Permintaan reset kata sandi dari pengguna'
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setResetSuccessMsg(`✅ Akun terverifikasi atas nama "${matchedUser.name}". Laporan reset password Anda berhasil terkirim ke Super Admin Desa Maleber! Super Admin akan meninjau dan membalas pesan Anda.`);
+        setResetContact('');
+        setResetReason('');
+      } else {
+        setErrorMsg(data.error || 'Gagal mengirimkan laporan reset password');
+      }
+    } catch (err) {
+      setErrorMsg('Gagal terhubung ke server database.');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -324,11 +408,13 @@ export default function AuthModal({
         {/* Modal Header */}
         <div className="text-center space-y-1">
           <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center mx-auto shadow-md">
-            {step === 'otp' ? <ShieldCheck className="w-6 h-6" /> : step === 'complete_profile' ? <UserCheck className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
+            {mode === 'forgot_password' ? <KeyRound className="w-6 h-6 text-amber-500" /> : step === 'otp' ? <ShieldCheck className="w-6 h-6" /> : step === 'complete_profile' ? <UserCheck className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
           </div>
           <h3 className="text-xl font-black text-zinc-900 dark:text-white mt-2">
             {mode === 'login' 
               ? 'Masuk Akun Maleber' 
+              : mode === 'forgot_password'
+              ? 'Reset Password / Lupa Kata Sandi'
               : step === 'select_method'
               ? 'Pilih Metode Verifikasi'
               : step === 'otp'
@@ -340,6 +426,8 @@ export default function AuthModal({
           <p className="text-xs text-zinc-500">
             {mode === 'login'
               ? 'Masukkan email/WhatsApp dan kata sandi Anda'
+              : mode === 'forgot_password'
+              ? 'Kirimkan laporan reset kata sandi ke Super Admin Desa'
               : step === 'complete_profile'
               ? 'Verifikasi OTP sukses! Tambahkan foto avatar & lokasi favorit Anda.'
               : step === 'select_method'
@@ -360,29 +448,42 @@ export default function AuthModal({
             )}
 
             {/* Avatar Selection */}
-            <div className="space-y-2">
-              <label className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-                📸 Pilih Foto Profil / Avatar
+            <div className="space-y-2 text-center">
+              <label className="text-xs font-black text-zinc-700 dark:text-zinc-300 block">
+                📸 Foto Profil Akun Anda (WhatsApp Style)
               </label>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                {[
-                  { name: 'Pria', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80' },
-                  { name: 'Wanita', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80' },
-                  { name: 'UMKM', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80' },
-                  { name: 'Driver', url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=200&q=80' }
-                ].map((av, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setAvatarUrl(av.url)}
-                    className={`relative w-12 h-12 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${
-                      avatarUrl === av.url ? 'border-emerald-600 ring-2 ring-emerald-500/30 scale-105' : 'border-zinc-200 dark:border-zinc-700 opacity-70'
-                    }`}
-                  >
-                    <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
-                  </button>
-                ))}
+
+              <div className="relative w-20 h-20 mx-auto group">
+                <img
+                  src={avatarUrl || DEFAULT_BLANK_AVATAR}
+                  alt={name}
+                  className="w-20 h-20 rounded-full object-cover ring-4 ring-emerald-500/30 shadow-lg mx-auto bg-zinc-100 dark:bg-zinc-800"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCropModal(true)}
+                  className="absolute -bottom-1 -right-1 bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-full shadow-md cursor-pointer transition-transform group-hover:scale-110"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
               </div>
+
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowCropModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-2xl text-xs font-extrabold cursor-pointer transition-all inline-flex items-center gap-1.5 shadow-md"
+                >
+                  <Crop className="w-3.5 h-3.5" /> ✂️ Unggah &amp; Potong Foto Profil
+                </button>
+              </div>
+
+              <AvatarCropModal
+                isOpen={showCropModal}
+                onClose={() => setShowCropModal(false)}
+                initialImage={avatarUrl}
+                onCropComplete={(croppedDataUrl) => setAvatarUrl(croppedDataUrl)}
+              />
             </div>
 
             {registerRole === 'seller' ? (
@@ -596,6 +697,19 @@ export default function AuthModal({
                   required
                 />
               </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('forgot_password');
+                    setErrorMsg('');
+                    setResetSuccessMsg('');
+                  }}
+                  className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  🔑 Lupa Kata Sandi?
+                </button>
+              </div>
             </div>
 
             <button
@@ -606,6 +720,80 @@ export default function AuthModal({
               {loading ? 'Memproses...' : 'Masuk Akun'}
               <ArrowRight className="w-4 h-4" />
             </button>
+          </form>
+        )}
+
+        {/* ---------------- FORGOT PASSWORD MODE ---------------- */}
+        {mode === 'forgot_password' && (
+          <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+            {resetSuccessMsg ? (
+              <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 p-4 rounded-2xl space-y-3 text-xs text-emerald-800 dark:text-emerald-300">
+                <p className="font-extrabold text-sm text-emerald-700 dark:text-emerald-200">{resetSuccessMsg}</p>
+                <button
+                  type="button"
+                  onClick={() => setMode('login')}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl transition-all cursor-pointer text-center"
+                >
+                  ← Kembali ke Halaman Login
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="bg-amber-50 dark:bg-amber-950/40 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                  <p className="font-extrabold">📌 Laporan Lupa Kata Sandi Akun</p>
+                  <p className="text-[11px] leading-relaxed">
+                    Kirimkan laporan ini ke <strong>Super Admin Desa Maleber</strong>. Super Admin akan mereset kata sandi Anda dan mengirimkan balasan langsung ke akun Anda.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    Email atau Nomor WhatsApp Terdaftar:
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                    <input
+                      type="text"
+                      placeholder="Masukkan email atau nomor WA terdaftar Anda"
+                      value={resetContact}
+                      onChange={(e) => setResetContact(e.target.value)}
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    Catatan / Alasan (Opsional):
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Contoh: Saya lupa kata sandi lama / HP sempat hilang..."
+                    value={resetReason}
+                    onChange={(e) => setResetReason(e.target.value)}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-xs font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-sm py-3.5 rounded-2xl shadow-lg shadow-amber-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {resetLoading ? 'Mengirim Laporan...' : 'Kirim Laporan ke Super Admin'}
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMode('login')}
+                  className="w-full text-center text-xs font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 py-1 cursor-pointer"
+                >
+                  ← Batal &amp; Kembali ke Login
+                </button>
+              </>
+            )}
           </form>
         )}
 
@@ -832,6 +1020,16 @@ export default function AuthModal({
                 className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
               >
                 Daftar Akun Baru
+              </button>
+            </p>
+          ) : mode === 'forgot_password' ? (
+            <p className="text-xs text-zinc-500">
+              Ingat kata sandi Anda?{' '}
+              <button
+                onClick={() => { setMode('login'); setStep('form'); setErrorMsg(''); }}
+                className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                Masuk ke Akun
               </button>
             </p>
           ) : (

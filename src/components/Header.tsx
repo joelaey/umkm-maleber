@@ -1,8 +1,7 @@
-'use client';
-
 import React from 'react';
 import { UserRole, UserProfile } from '@/types';
 import { ShoppingBag, Store, Bike, ShieldCheck, Crown, ShoppingCart, User, LogOut, Sun, Moon, MapPin } from 'lucide-react';
+import { DEFAULT_BLANK_AVATAR } from './AvatarCropModal';
 
 interface HeaderProps {
   currentRole: UserRole;
@@ -115,17 +114,11 @@ export default function Header({
                   className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity pl-1"
                   title="Pengaturan Profil & Alamat Favorit"
                 >
-                  {currentUser.avatar ? (
-                    <img
-                      src={currentUser.avatar}
-                      alt={currentUser.name}
-                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl object-cover ring-2 ring-emerald-500/30"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
-                      {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                  )}
+                  <img
+                    src={currentUser.avatar || DEFAULT_BLANK_AVATAR}
+                    alt={currentUser.name}
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover ring-2 ring-emerald-500/30 bg-zinc-200 dark:bg-zinc-700"
+                  />
                   <span className="text-xs font-bold text-zinc-900 dark:text-white hidden md:inline max-w-[100px] truncate">
                     {currentUser.name}
                   </span>

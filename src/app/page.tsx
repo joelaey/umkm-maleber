@@ -14,7 +14,7 @@ import ProfileModal from '@/components/ProfileModal';
 import ChatModal from '@/components/ChatModal';
 import ToastContainer, { ToastMessage, ToastType } from '@/components/Toast';
 
-import { UserRole, UserProfile, Store, Product, CartItem, Order, RideRequest, DriverInfo, ChatMessage, Review, PlacePOI } from '@/types';
+import { UserRole, UserProfile, Store, Product, CartItem, Order, RideRequest, DriverInfo, ChatMessage, Review, PlacePOI, PasswordResetRequest } from '@/types';
 import { triggerSystemNotification } from '@/lib/notificationUtils';
 import {
   INITIAL_USERS,
@@ -90,6 +90,7 @@ export default function Home() {
   const [rides, setRides] = useState<RideRequest[]>(INITIAL_RIDES);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
   const [places, setPlaces] = useState<PlacePOI[]>(INITIAL_PLACES);
+  const [resetRequests, setResetRequests] = useState<PasswordResetRequest[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
@@ -107,12 +108,12 @@ export default function Home() {
       const res = await fetch('/api/db');
       const data = await res.json();
       if (data.success) {
-        if (data.users && data.users.length > 0) setUsers(data.users);
+        if (data.users !== undefined) setUsers(data.users);
         const currentReviews: Review[] = data.reviews || [];
-        if (data.reviews && data.reviews.length > 0) setReviews(data.reviews);
+        if (data.reviews !== undefined) setReviews(data.reviews);
 
-        if (data.drivers && data.drivers.length > 0) {
-          const updatedDrivers = data.drivers.map((drv: DriverInfo) => {
+        if (data.drivers !== undefined) {
+          const updatedDrivers = (data.drivers || []).map((drv: DriverInfo) => {
             const driverRevs = currentReviews.filter(
               (r: Review) => (r.targetId === drv.id || r.targetId === drv.name) && r.targetType === 'driver'
             );
@@ -120,13 +121,13 @@ export default function Home() {
               const avg = driverRevs.reduce((sum: number, r: Review) => sum + r.rating, 0) / driverRevs.length;
               return { ...drv, rating: Math.round(avg * 10) / 10, reviewCount: driverRevs.length };
             }
-            return { ...drv, rating: 0, reviewCount: 0 };
+            return { ...drv, rating: drv.rating || 5.0, reviewCount: drv.reviewCount || 1 };
           });
           setDrivers(updatedDrivers);
         }
 
-        if (data.stores && data.stores.length > 0) {
-          const updatedStores = data.stores.map((st: Store) => {
+        if (data.stores !== undefined) {
+          const updatedStores = (data.stores || []).map((st: Store) => {
             const storeRevs = currentReviews.filter(
               (r: Review) => r.targetId === st.id && r.targetType === 'store'
             );
@@ -134,13 +135,13 @@ export default function Home() {
               const avg = storeRevs.reduce((sum: number, r: Review) => sum + r.rating, 0) / storeRevs.length;
               return { ...st, rating: Math.round(avg * 10) / 10, reviewCount: storeRevs.length };
             }
-            return { ...st, rating: 0, reviewCount: 0 };
+            return { ...st, rating: st.rating || 5.0, reviewCount: st.reviewCount || 1 };
           });
           setStores(updatedStores);
         }
 
-        if (data.products && data.products.length > 0) {
-          const updatedProducts = data.products.map((p: Product) => {
+        if (data.products !== undefined) {
+          const updatedProducts = (data.products || []).map((p: Product) => {
             const pRevs = currentReviews.filter(
               (r: Review) => r.targetId === p.id && r.targetType === 'product'
             );
@@ -152,9 +153,26 @@ export default function Home() {
           });
           setProducts(updatedProducts);
         }
-        if (data.orders) setOrders(data.orders);
-        if (data.rides) setRides(data.rides);
-        if (data.messages) setMessages(data.messages);
+
+        const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+
+        if (data.orders !== undefined) {
+          const recentOrders = (data.orders || []).filter((o: Order) => {
+            const t = new Date(o.createdAt).getTime();
+            return !isNaN(t) && (now - t) <= THIRTY_DAYS_MS;
+          });
+          setOrders(recentOrders);
+        }
+        if (data.rides !== undefined) {
+          const recentRides = (data.rides || []).filter((r: RideRequest) => {
+            const t = new Date(r.createdAt).getTime();
+            return !isNaN(t) && (now - t) <= THIRTY_DAYS_MS;
+          });
+          setRides(recentRides);
+        }
+        if (data.messages !== undefined) setMessages(data.messages);
+        if (data.resetRequests !== undefined) setResetRequests(data.resetRequests);
       }
     } catch (err) {
       console.error('Failed to load live data from Supabase DB:', err);
@@ -165,7 +183,7 @@ export default function Home() {
     loadLiveSupabaseData();
     const interval = setInterval(() => {
       loadLiveSupabaseData();
-    }, 2500);
+    }, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -862,6 +880,10 @@ export default function Home() {
                   onToggleProductAvailability={handleToggleProductAvailability}
                   onSelectProduct={(p) => setSelectedProductDetail(p)}
                   onOpenChat={handleOpenChat}
+                  onUpdateStore={(updatedStore) => {
+                    setStores((prev) => prev.map((s) => (s.id === updatedStore.id ? updatedStore : s)));
+                    addToast('success', 'Foto Toko Diperbarui 📸', `Foto banner untuk ${updatedStore.name} telah berhasil diperbarui.`);
+                  }}
                   onToggleStoreStatus={(storeId, isActive) => {
                     setStores((prev) =>
                       prev.map((s) => (s.id === storeId ? { ...s, isActive } : s))
@@ -917,24 +939,63 @@ export default function Home() {
                 rides={rides}
                 places={places}
                 users={users}
+                resetRequests={resetRequests}
                 isPetugasDesa={currentRole === 'admin'}
                 onAddStoreByAdmin={(newStore) => {
                   setStores((prev) => [newStore, ...prev]);
                   addToast('success', 'Toko UMKM Terdaftar!', `${newStore.name} berhasil diverifikasi.`);
+                  fetch('/api/db', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'create_store', data: newStore })
+                  })
+                    .then(() => loadLiveSupabaseData())
+                    .catch((err) => console.warn('Failed to save store to DB:', err));
                 }}
                 onAddDriverByAdmin={(newDriver) => {
                   setDrivers((prev) => [newDriver, ...prev]);
                   addToast('success', 'Driver Ojek Terdaftar!', `${newDriver.name} (${newDriver.vehicleNumber}) aktif.`);
+                  fetch('/api/db', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'create_driver', data: newDriver })
+                  })
+                    .then(() => loadLiveSupabaseData())
+                    .catch((err) => console.warn('Failed to save driver to DB:', err));
                 }}
                 onDeleteUserByAdmin={(userId, userEmail) => {
+                  const targetUser = users.find((u) => u.id === userId || (userEmail && u.email === userEmail));
+                  const targetName = targetUser?.name || '';
+                  const targetPhone = targetUser?.phone || '';
+
+                  // 1. Delete user profile
                   setUsers((prev) => prev.filter((u) => u.id !== userId && u.email !== userEmail));
-                  addToast('info', 'User Berhasil Dihapus 🗑️', `Akun user telah terhapus dari sistem Maleber.`);
+
+                  // 2. Delete driver standby marker & info
+                  setDrivers((prev) => prev.filter((d) => d.id !== userId && d.name !== targetName && d.phone !== targetPhone));
+
+                  // 3. Delete stores & associated products
+                  const deletedStoreIds = stores.filter((s) => s.ownerId === userId || s.ownerName === targetName || s.phone === targetPhone).map((s) => s.id);
+                  setStores((prev) => prev.filter((s) => s.ownerId !== userId && s.ownerName !== targetName && s.phone !== targetPhone));
+                  setProducts((prev) => prev.filter((p) => !deletedStoreIds.includes(p.storeId)));
+
+                  // 4. Delete orders
+                  setOrders((prev) => prev.filter((o) => o.buyerId !== userId && o.driverId !== userId && !deletedStoreIds.includes(o.storeId) && o.buyerName !== targetName && o.driverName !== targetName));
+
+                  // 5. Delete rides
+                  setRides((prev) => prev.filter((r) => r.passengerId !== userId && r.driverId !== userId && r.passengerName !== targetName && r.driverName !== targetName));
+
+                  // 6. Delete messages
+                  setMessages((prev) => prev.filter((m) => m.senderId !== userId && m.receiverId !== userId && m.senderName !== targetName && m.receiverName !== targetName));
+
+                  addToast('info', 'User & Seluruh Data Terkait Dihapus 🗑️', `Akun, marker driver standby, toko, dan order milik user telah dibersihkan.`);
                 }}
                 onSwitchRoleView={(r) => {
                   setCurrentRole(r);
                   setSelectedProductDetail(null);
                   addToast('info', 'Super Admin View Inspector', `Melihat tampilan sebagai ${r.toUpperCase()}`);
                 }}
+                onRefreshData={loadLiveSupabaseData}
               />
             )}
           </main>

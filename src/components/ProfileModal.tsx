@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import { UserProfile, SavedAddress } from '@/types';
-import { User, Mail, Phone, Home, Building, GraduationCap, MapPin, Plus, Trash2, CheckCircle2, Store, Bike, Camera, Upload, Link, Sun, Moon, Bell, ShieldCheck, Wallet, Volume2, Map as MapIcon, Crosshair } from 'lucide-react';
+import { User, Mail, Phone, Home, Building, GraduationCap, MapPin, Plus, Trash2, CheckCircle2, Store, Bike, Camera, Upload, Link, Sun, Moon, Bell, ShieldCheck, Wallet, Volume2, Map as MapIcon, Crosshair, Crop, Lock, KeyRound, Eye, EyeOff, Check } from 'lucide-react';
 import { requestSystemNotificationPermission, triggerSystemNotification } from '@/lib/notificationUtils';
+import { verifyPassword, hashPassword } from '@/lib/cryptoUtils';
 import MapComponent from './MapComponent';
+import AvatarCropModal, { DEFAULT_BLANK_AVATAR } from './AvatarCropModal';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -31,10 +33,11 @@ export default function ProfileModal({
   const [name, setName] = useState(user.name || '');
   const [phone, setPhone] = useState(user.phone || '');
   const [email, setEmail] = useState(user.email || '');
-  const [avatar, setAvatar] = useState(user.avatar || '');
+  const [avatar, setAvatar] = useState(user.avatar && !user.avatar.includes('unsplash') ? user.avatar : DEFAULT_BLANK_AVATAR);
   const [storeName, setStoreName] = useState(user.storeName || '');
   const [vehicleInfo, setVehicleInfo] = useState(user.vehicleInfo || '');
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [showCropModal, setShowCropModal] = useState(false);
   const [notifEnabled, setNotifEnabled] = useState(true);
 
   // Saved addresses state
@@ -65,6 +68,26 @@ export default function ProfileModal({
   const [showFullscreenMap, setShowFullscreenMap] = useState(false);
   const [mapTargetType, setMapTargetType] = useState<'store' | 'buyer'>('store');
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
+
+  // OTP Verification State for Phone / Email Modification
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [otpErrorMsg, setOtpErrorMsg] = useState('');
+  const [otpTargetInfo, setOtpTargetInfo] = useState('');
+  const [pendingUpdatedUser, setPendingUpdatedUser] = useState<UserProfile | null>(null);
+
+  // Password Change State
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmNewPasswordInput, setConfirmNewPasswordInput] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -247,12 +270,126 @@ export default function ProfileModal({
       savedAddresses: finalSavedAddresses
     };
 
+    const isPhoneChanged = phone.trim() !== (user.phone || '').trim();
+    const isEmailChanged = email.trim() !== (user.email || '').trim();
+
+    if (isPhoneChanged || isEmailChanged) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedOtp(code);
+      setPinDigits(['', '', '', '', '', '']);
+      setOtpErrorMsg('');
+
+      let info = '';
+      if (isPhoneChanged && isEmailChanged) {
+        info = `Nomor WhatsApp (${phone}) & Email (${email})`;
+      } else if (isPhoneChanged) {
+        info = `Nomor WhatsApp Baru (${phone})`;
+      } else {
+        info = `Email Baru (${email})`;
+      }
+
+      setOtpTargetInfo(info);
+      setPendingUpdatedUser(updated);
+      setShowOtpModal(true);
+      return;
+    }
+
     onSaveProfile(updated);
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);
       onClose();
     }, 1200);
+  };
+
+  const handleVerifyOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    const enteredPin = pinDigits.join('');
+    if (enteredPin.length < 6 || enteredPin !== generatedOtp) {
+      setOtpErrorMsg('Kode OTP tidak sesuai! Silakan periksa kembali.');
+      return;
+    }
+
+    if (pendingUpdatedUser) {
+      onSaveProfile(pendingUpdatedUser);
+      setShowOtpModal(false);
+      setSavedSuccess(true);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        onClose();
+      }, 1200);
+    }
+  };
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (!currentPasswordInput) {
+      setPasswordError('⚠️ Silakan masukkan kata sandi lama Anda saat ini.');
+      return;
+    }
+
+    const userPass = user.password || '';
+    if (userPass) {
+      const isCurrentValid = verifyPassword(currentPasswordInput, userPass);
+      if (!isCurrentValid) {
+        setPasswordError('⚠️ Kata sandi lama Anda salah! Silakan periksa kembali.');
+        return;
+      }
+    }
+
+    if (newPasswordInput.length < 6) {
+      setPasswordError('⚠️ Kata sandi baru minimal 6 karakter!');
+      return;
+    }
+
+    if (newPasswordInput !== confirmNewPasswordInput) {
+      setPasswordError('⚠️ Konfirmasi kata sandi baru tidak cocok!');
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      const hashed = hashPassword(newPasswordInput);
+
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change_password',
+          data: {
+            id: user.id,
+            email: user.email,
+            phone: user.phone,
+            currentPassword: currentPasswordInput,
+            newPassword: hashed
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        const updatedUser: UserProfile = {
+          ...user,
+          password: hashed
+        };
+        onSaveProfile(updatedUser);
+
+        setPasswordSuccess('✅ Kata sandi akun Anda berhasil diperbarui!');
+        setCurrentPasswordInput('');
+        setNewPasswordInput('');
+        setConfirmNewPasswordInput('');
+      } else {
+        setPasswordError(`⚠️ ${data.error || 'Gagal mengubah kata sandi'}`);
+      }
+    } catch (err: any) {
+      setPasswordError(`⚠️ Terjadi kesalahan: ${err.message}`);
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const labelIcons = {
@@ -294,33 +431,34 @@ export default function ProfileModal({
             <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">Foto Profil Anda:</label>
             
             <div className="relative w-20 h-20 mx-auto group">
-              {avatar ? (
-                <img
-                  src={avatar}
-                  alt={name}
-                  className="w-20 h-20 rounded-2xl object-cover ring-4 ring-emerald-500/30 shadow-lg mx-auto"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white font-black text-2xl flex items-center justify-center ring-4 ring-emerald-500/30 shadow-lg mx-auto">
-                  {name ? name.charAt(0).toUpperCase() : 'U'}
-                </div>
-              )}
+              <img
+                src={avatar || DEFAULT_BLANK_AVATAR}
+                alt={name}
+                className="w-20 h-20 rounded-full object-cover ring-4 ring-emerald-500/30 shadow-lg mx-auto bg-zinc-100 dark:bg-zinc-800"
+              />
 
-              <label className="absolute -bottom-1 -right-1 bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl shadow-md cursor-pointer transition-transform group-hover:scale-110">
+              <button
+                type="button"
+                onClick={() => setShowCropModal(true)}
+                className="absolute -bottom-1 -right-1 bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-full shadow-md cursor-pointer transition-transform group-hover:scale-110"
+                title="Potong / Edit Foto Profil"
+              >
                 <Camera className="w-4 h-4" />
-                <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-              </label>
+              </button>
             </div>
 
             <div className="flex justify-center items-center gap-2 text-xs pt-1">
-              <label className="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 px-3 py-1.5 rounded-xl font-extrabold cursor-pointer transition-colors flex items-center gap-1.5">
-                <Upload className="w-3.5 h-3.5 text-emerald-600" /> Unggah Foto Dari Galeri
-                <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-              </label>
+              <button
+                type="button"
+                onClick={() => setShowCropModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-2xl font-extrabold cursor-pointer transition-all flex items-center gap-1.5 shadow-md"
+              >
+                <Crop className="w-3.5 h-3.5" /> ✂️ Potong &amp; Atur Foto Profil
+              </button>
               <button
                 type="button"
                 onClick={() => setShowUrlInput(!showUrlInput)}
-                className="p-1.5 text-zinc-400 hover:text-emerald-600 transition-colors"
+                className="p-2 text-zinc-400 hover:text-emerald-600 transition-colors bg-zinc-100 dark:bg-zinc-800 rounded-xl"
                 title="Input via Link / URL"
               >
                 <Link className="w-4 h-4" />
@@ -337,6 +475,13 @@ export default function ProfileModal({
               />
             )}
           </div>
+
+          <AvatarCropModal
+            isOpen={showCropModal}
+            onClose={() => setShowCropModal(false)}
+            initialImage={avatar}
+            onCropComplete={(croppedDataUrl) => setAvatar(croppedDataUrl)}
+          />
 
           {/* User Basic Info Fields */}
           <div className="space-y-3">
@@ -417,6 +562,134 @@ export default function ProfileModal({
                   ✉️ Tes Kirim Email OTP (via Resend)
                 </button>
               </div>
+            </div>
+
+            {/* Password Change Card Section (For ALL Users: Buyer, Seller/UMKM, Driver, Admin, Superadmin) */}
+            <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-500 flex items-center justify-center font-bold">
+                    🔑
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-zinc-900 dark:text-white">Ubah Kata Sandi (Password)</h4>
+                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Ganti kata sandi akun Anda secara langsung</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordSection(!showPasswordSection);
+                    setPasswordError('');
+                    setPasswordSuccess('');
+                  }}
+                  className="px-3 py-1 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 font-extrabold text-[11px] rounded-xl border border-emerald-500/30 transition-all cursor-pointer"
+                >
+                  {showPasswordSection ? 'Sembunyikan' : '🔑 Ganti Password'}
+                </button>
+              </div>
+
+              {showPasswordSection && (
+                <div className="pt-2 border-t border-zinc-200 dark:border-zinc-700/60 space-y-3">
+                  {passwordError && (
+                    <div className="p-2.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-700 dark:text-rose-300 font-bold">
+                      {passwordError}
+                    </div>
+                  )}
+
+                  {passwordSuccess && (
+                    <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 font-bold">
+                      {passwordSuccess}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
+                      Kata Sandi Saat Ini (Lama):
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                      <input
+                        type={showCurrentPass ? 'text' : 'password'}
+                        value={currentPasswordInput}
+                        onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                        placeholder="Masukkan kata sandi lama Anda"
+                        className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-9 pr-9 py-2 text-xs font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPass(!showCurrentPass)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                      >
+                        {showCurrentPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
+                        Kata Sandi Baru:
+                      </label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                        <input
+                          type={showNewPass ? 'text' : 'password'}
+                          value={newPasswordInput}
+                          onChange={(e) => setNewPasswordInput(e.target.value)}
+                          placeholder="Min. 6 Karakter"
+                          className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-9 pr-9 py-2 text-xs font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPass(!showNewPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                        >
+                          {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
+                        Konfirmasi Kata Sandi Baru:
+                      </label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                        <input
+                          type={showConfirmPass ? 'text' : 'password'}
+                          value={confirmNewPasswordInput}
+                          onChange={(e) => setConfirmNewPasswordInput(e.target.value)}
+                          placeholder="Ulangi kata sandi baru"
+                          className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-9 pr-9 py-2 text-xs font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPass(!showConfirmPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                        >
+                          {showConfirmPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleChangePasswordSubmit}
+                    disabled={passwordLoading}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {passwordLoading ? (
+                      'Memproses...'
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" /> Ubah Kata Sandi Sekarang
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Role Specific Extra Fields */}
@@ -750,6 +1023,110 @@ export default function ProfileModal({
           </button>
         </form>
       </div>
+
+      {/* OTP Verification Modal for Phone / Email Modification */}
+      {showOtpModal && (
+        <div
+          className="fixed inset-0 z-[999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 modal-overlay"
+          onClick={() => setShowOtpModal(false)}
+        >
+          <div
+            className="bg-zinc-900 text-white rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-zinc-800 modal-content relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+                  🔐
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">Verifikasi OTP Ubah Kontak</h3>
+                  <p className="text-[11px] text-zinc-400">Konfirmasi keamanan perubahan No. HP / Email</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOtpModal(false)}
+                className="w-8 h-8 rounded-full bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* OTP Notice Banner */}
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1 text-xs">
+              <p className="font-bold text-amber-300">
+                📲 Masukkan 6 digit Kode OTP untuk memverifikasi perubahan:
+              </p>
+              <p className="text-zinc-300 font-medium">{otpTargetInfo}</p>
+              <div className="mt-2 p-2 bg-black/50 border border-emerald-500/40 rounded-xl text-center">
+                <span className="text-[10px] text-zinc-400 block font-semibold uppercase tracking-wider">
+                  💬 Kode OTP Simulasi Desa Maleber:
+                </span>
+                <span className="text-xl font-black tracking-widest text-emerald-400 tabular-nums">
+                  {generatedOtp}
+                </span>
+              </div>
+            </div>
+
+            {otpErrorMsg && (
+              <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-xl text-xs text-rose-300 font-bold">
+                ⚠️ {otpErrorMsg}
+              </div>
+            )}
+
+            {/* PIN Inputs */}
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="flex justify-center gap-2">
+                {pinDigits.map((digit, index) => (
+                  <input
+                    key={index}
+                    id={`otp-profile-pin-${index}`}
+                    type="text"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const updated = [...pinDigits];
+                      updated[index] = val;
+                      setPinDigits(updated);
+                      if (val && index < 5) {
+                        const nextInput = document.getElementById(`otp-profile-pin-${index + 1}`);
+                        nextInput?.focus();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Backspace' && !pinDigits[index] && index > 0) {
+                        const prevInput = document.getElementById(`otp-profile-pin-${index - 1}`);
+                        prevInput?.focus();
+                      }
+                    }}
+                    className="w-10 h-12 text-center text-lg font-black bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                  />
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setShowOtpModal(false)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs py-3 rounded-2xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-3 rounded-2xl shadow-lg shadow-emerald-600/30 cursor-pointer"
+                >
+                  ✓ Verifikasi OTP &amp; Simpan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

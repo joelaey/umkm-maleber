@@ -11,7 +11,7 @@ export interface SavedAddress {
 export interface UserProfile {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   email: string;
   role: UserRole;
   avatar: string;
@@ -203,3 +203,18 @@ export interface PlacePOI {
   description?: string;
   image?: string;
 }
+
+export interface PasswordResetRequest {
+  id: string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  userPhone?: string;
+  reason: string;
+  status: 'pending' | 'resolved';
+  adminReply?: string;
+  newPasswordSet?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, UserProfile, UserRole } from '@/types';
 import { Send, X, MessageSquare, Phone, CheckCheck, Clock, Store, Bike, User, ShieldCheck } from 'lucide-react';
+import { DEFAULT_BLANK_AVATAR } from './AvatarCropModal';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -192,9 +193,9 @@ export default function ChatModal({
           <div className="flex items-center gap-3">
             <div className="relative">
               <img
-                src={targetUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                src={targetUser.avatar || DEFAULT_BLANK_AVATAR}
                 alt={targetUser.name}
-                className="w-10 h-10 rounded-xl object-cover ring-2 ring-emerald-500/20"
+                className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20 bg-zinc-200 dark:bg-zinc-700"
               />
               <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-900"></span>
             </div>
