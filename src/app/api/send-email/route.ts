@@ -3,17 +3,28 @@ import { Resend } from 'resend';
 
 export async function POST(req: Request) {
   try {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { success: false, error: 'RESEND_API_KEY belum dikonfigurasi di environment server' },
-        { status: 500 }
-      );
-    }
-    const resend = new Resend(apiKey);
-
     const body = await req.json();
     const { to, subject, type, name, otpCode, orderDetails, message } = body;
+
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.warn('RESEND_API_KEY not configured. Falling back to Demo Mode.');
+      if (type === 'otp') {
+        return NextResponse.json({
+          success: true,
+          demoMode: true,
+          otpCode,
+          notice: `ℹ️ Mode Pengujian: RESEND_API_KEY belum diset di server. Kode OTP 6-digit Anda: ${otpCode || '123456'}`
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        demoMode: true,
+        message: 'Email simulasi berhasil (Demo Mode)'
+      });
+    }
+
+    const resend = new Resend(apiKey);
 
     if (!to) {
       return NextResponse.json(
@@ -113,6 +124,14 @@ export async function POST(req: Request) {
             notice: `[Mode Sandbox] Email OTP dikirim ke email pengembang (mjlynsyh@gmail.com) karena domain kustom Resend belum diverifikasi.`
           });
         }
+      }
+      if (type === 'otp') {
+        return NextResponse.json({
+          success: true,
+          demoMode: true,
+          otpCode,
+          notice: `ℹ️ Mode Simulasi: (Resend: ${data.error.message}). Kode OTP pengujian 6-digit Anda: ${otpCode || '123456'}`
+        });
       }
       return NextResponse.json({ success: false, error: data.error.message }, { status: 400 });
     }

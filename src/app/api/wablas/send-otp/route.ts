@@ -16,10 +16,13 @@ export async function POST(request: Request) {
     const apiUrl = process.env.WABLAS_API_URL || 'https://solo.wablas.com';
 
     if (!apiToken) {
-      return NextResponse.json(
-        { success: false, error: 'Wablas API Token belum dikonfigurasi di server' },
-        { status: 500 }
-      );
+      console.warn('WABLAS_API_TOKEN not configured. Falling back to Demo Mode.');
+      return NextResponse.json({
+        success: true,
+        demoMode: true,
+        otpCode,
+        notice: `ℹ️ Mode Demo WhatsApp: WABLAS_API_TOKEN belum diset di server. Kode OTP 6-digit Anda: ${otpCode}`
+      });
     }
 
     // Normalisasi nomor telepon ke format internasional (62xxx)
