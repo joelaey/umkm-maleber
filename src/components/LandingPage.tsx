@@ -74,15 +74,15 @@ const TESTIMONIALS = [
 export default function LandingPage({
   onEnterApp,
   onOpenAuth,
-  storesCount = 3,
-  productsCount = 4,
-  driversCount = 3,
-  ordersCount = 12
+  storesCount = 0,
+  productsCount = 0,
+  driversCount = 0,
+  ordersCount = 0
 }: LandingPageProps) {
   const [activeTestimonial, setActiveTestimonial] = useState(0);
-  const stats1 = useCountUp(storesCount || 3);
-  const stats2 = useCountUp(driversCount || 3);
-  const stats3 = useCountUp(productsCount || 4);
+  const stats1 = useCountUp(storesCount ?? 0);
+  const stats2 = useCountUp(driversCount ?? 0);
+  const stats3 = useCountUp(productsCount ?? 0);
 
   // Auto-rotate testimonials
   useEffect(() => {
