@@ -158,101 +158,30 @@ export async function GET() {
   try {
     await ensureDbInitialized();
 
-    const profilesRes = await queryDb('SELECT * FROM public.profiles ORDER BY created_at DESC')
-      .catch(() => queryDb('SELECT * FROM public.profiles'))
-      .catch(() => ({ rows: [] }));
-
-    // Ensure column migrations exist
-    await queryDb('ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS name TEXT;').catch(() => {});
-    await queryDb('ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS driver_name TEXT;').catch(() => {});
-    await queryDb('ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS phone TEXT;').catch(() => {});
-    await queryDb('ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS owner_id TEXT;').catch(() => {});
-    await queryDb('ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS owner_name TEXT;').catch(() => {});
-
-    // Auto-sync seller profiles to public.stores
-    let syncSellerErr = '';
-    await queryDb(`
-      INSERT INTO public.stores (id, owner_id, name, category, address, lat, lng, owner_name, phone, rating, review_count, image, is_active, description)
-      SELECT 
-        id, 
-        id, 
-        concat('Warung ', name), 
-        'Kuliner', 
-        'Desa Maleber, Karangtengah, Cianjur', 
-        -6.8155, 
-        107.1865, 
-        name, 
-        COALESCE(phone, '081234567890'), 
-        5.0, 
-        1, 
-        'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80', 
-        TRUE, 
-        'Toko UMKM Desa Maleber'
-      FROM public.profiles
-      WHERE role = 'seller'
-      ON CONFLICT (id) DO NOTHING
-    `).catch((e) => {
-      syncSellerErr = e.message;
-      console.error('Sync seller error:', e.message);
-    });
-
-    // Auto-sync driver profiles to public.driver_locations
-    let syncDriverErr = '';
-    await queryDb(`
-      INSERT INTO public.driver_locations (id, name, driver_name, phone, lat, lng, is_online, rating, review_count, vehicle_model, vehicle_number)
-      SELECT 
-        id, 
-        name, 
-        name, 
-        COALESCE(phone, '081234567890'), 
-        -6.8155, 
-        107.1865, 
-        TRUE, 
-        5.0, 
-        1, 
-        'Motor Ojek Maleber', 
-        'F 1000 MBR'
-      FROM public.profiles
-      WHERE role = 'driver'
-      ON CONFLICT (id) DO NOTHING
-    `).catch((e) => {
-      syncDriverErr = e.message;
-      console.error('Sync driver error:', e.message);
-    });
-
-    let storesRes = await queryDb('SELECT * FROM public.stores ORDER BY created_at DESC')
-      .catch(() => queryDb('SELECT * FROM public.stores'))
-      .catch(() => ({ rows: [] }));
-
-    let driversRes = await queryDb('SELECT * FROM public.driver_locations ORDER BY updated_at DESC')
-      .catch(() => queryDb('SELECT * FROM public.driver_locations'))
-      .catch(() => ({ rows: [] }));
-
-    const productsRes = await queryDb('SELECT * FROM public.products ORDER BY created_at DESC')
-      .catch(() => queryDb('SELECT * FROM public.products'))
-      .catch(() => ({ rows: [] }));
-
-    const driverVehiclesRes = await queryDb('SELECT * FROM public.driver_vehicles')
-      .catch(() => ({ rows: [] }));
-
-    const ordersRes = await queryDb('SELECT * FROM public.orders ORDER BY created_at DESC')
-      .catch(() => queryDb('SELECT * FROM public.orders'))
-      .catch(() => ({ rows: [] }));
-
-    const ridesRes = await queryDb('SELECT * FROM public.ride_requests ORDER BY created_at DESC')
-      .catch(() => queryDb('SELECT * FROM public.ride_requests'))
-      .catch(() => ({ rows: [] }));
-
-    const reviewsRes = await queryDb('SELECT * FROM public.reviews ORDER BY created_at DESC')
-      .catch(() => queryDb('SELECT * FROM public.reviews'))
-      .catch(() => ({ rows: [] }));
-
-    const messagesRes = await queryDb('SELECT * FROM public.messages ORDER BY created_at ASC')
-      .catch(() => queryDb('SELECT * FROM public.messages'))
-      .catch(() => ({ rows: [] }));
-
-    const resetRequestsRes = await queryDb('SELECT * FROM public.reset_requests ORDER BY created_at DESC')
-      .catch(() => ({ rows: [] }));
+    // Fast parallel execution of all SELECT queries via Promise.all
+    const [
+      profilesRes,
+      storesRes,
+      driversRes,
+      productsRes,
+      driverVehiclesRes,
+      ordersRes,
+      ridesRes,
+      reviewsRes,
+      messagesRes,
+      resetRequestsRes
+    ] = await Promise.all([
+      queryDb('SELECT * FROM public.profiles ORDER BY created_at DESC').catch(() => queryDb('SELECT * FROM public.profiles')).catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.stores ORDER BY created_at DESC').catch(() => queryDb('SELECT * FROM public.stores')).catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.driver_locations ORDER BY updated_at DESC').catch(() => queryDb('SELECT * FROM public.driver_locations')).catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.products ORDER BY created_at DESC').catch(() => queryDb('SELECT * FROM public.products')).catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.driver_vehicles').catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.orders ORDER BY created_at DESC').catch(() => queryDb('SELECT * FROM public.orders')).catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.ride_requests ORDER BY created_at DESC').catch(() => queryDb('SELECT * FROM public.ride_requests')).catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.reviews ORDER BY created_at DESC').catch(() => queryDb('SELECT * FROM public.reviews')).catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.messages ORDER BY created_at ASC').catch(() => queryDb('SELECT * FROM public.messages')).catch(() => ({ rows: [] })),
+      queryDb('SELECT * FROM public.reset_requests ORDER BY created_at DESC').catch(() => ({ rows: [] }))
+    ]);
 
     const users = profilesRes.rows.map((u) => ({
       id: u.id,
@@ -407,9 +336,7 @@ export async function GET() {
       rides,
       reviews,
       messages,
-      resetRequests,
-      syncSellerErr,
-      syncDriverErr
+      resetRequests
     });
   } catch (error: any) {
     console.error('API GET /api/db error:', error);

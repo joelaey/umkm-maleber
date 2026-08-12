@@ -1025,6 +1025,7 @@ export default function Home() {
         initialMode={authInitialMode}
         initialRole={authInitialRole}
         onAuthSuccess={handleAuthSuccess}
+        users={users}
       />
 
       {/* Profile Modal */}

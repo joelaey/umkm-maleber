@@ -12,6 +12,7 @@ interface AuthModalProps {
   initialMode?: 'login' | 'register';
   initialRole?: UserRole;
   onAuthSuccess: (user: UserProfile) => void;
+  users?: UserProfile[];
 }
 
 export default function AuthModal({
@@ -19,7 +20,8 @@ export default function AuthModal({
   onClose,
   initialMode = 'login',
   initialRole = 'buyer',
-  onAuthSuccess
+  onAuthSuccess,
+  users = []
 }: AuthModalProps) {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
 
@@ -48,10 +50,29 @@ export default function AuthModal({
   const [sendingOtp, setSendingOtp] = useState(false);
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '', '', '']);
 
-  // Step 4: Complete Profile Details State
+  // Handle Location Picker for Home/Store Location
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [homeCoords, setHomeCoords] = useState<{ lat: number; lng: number }>({ lat: -6.8155, lng: 107.1865 });
+  const [homeAddress, setHomeAddress] = useState('Desa Maleber, Karangtengah, Cianjur');
+
+  // Reverse Geocoding via Nominatim API when coords change in Location Picker
+  const handleCoordsChange = async (newLat: number, newLng: number) => {
+    setHomeCoords({ lat: newLat, lng: newLng });
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLng}`);
+      const data = await res.json();
+      if (data && data.display_name) {
+        setHomeAddress(data.display_name);
+      } else {
+        setHomeAddress(`Lokasi (${newLat.toFixed(5)}, ${newLng.toFixed(5)})`);
+      }
+    } catch {
+      setHomeAddress(`Lokasi (${newLat.toFixed(5)}, ${newLng.toFixed(5)})`);
+    }
+  };
+
   const [avatarUrl, setAvatarUrl] = useState<string>(DEFAULT_BLANK_AVATAR);
   const [showCropModal, setShowCropModal] = useState<boolean>(false);
-  const [homeAddress, setHomeAddress] = useState('RT 02 / RW 01 Dusun Manis, Desa Maleber');
   const [officeAddress, setOfficeAddress] = useState('Balai Desa Maleber, Kec. Maleber');
   const [favoriteAddress, setFavoriteAddress] = useState('Pos Ronda Dusun Pahing');
   const [bioNote, setBioNote] = useState('Depan pagar hijau rumah Pak RT');
@@ -90,14 +111,23 @@ export default function AuthModal({
       const cleanInput = identifier.trim().toLowerCase();
       const cleanPhoneInput = identifier.replace(/[^0-9]/g, '');
 
-      let foundUser = INITIAL_USERS.find((u) => {
+      // Instant in-memory search in live users array or INITIAL_USERS
+      let foundUser = (users && users.length > 0 ? users : []).find((u) => {
         const emailMatch = u.email?.toLowerCase() === cleanInput;
         const phoneMatch = cleanPhoneInput.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneInput;
         return emailMatch || phoneMatch;
       });
 
       if (!foundUser) {
-        // Check registered users in Supabase DB
+        foundUser = INITIAL_USERS.find((u) => {
+          const emailMatch = u.email?.toLowerCase() === cleanInput;
+          const phoneMatch = cleanPhoneInput.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneInput;
+          return emailMatch || phoneMatch;
+        });
+      }
+
+      if (!foundUser) {
+        // Fallback: fetch from Supabase DB only if not found in memory
         try {
           const dbRes = await fetch('/api/db');
           const dbData = await dbRes.json();
