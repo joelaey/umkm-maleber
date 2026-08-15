@@ -1,10 +1,40 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
+// Simple in-memory rate limiting map (max 5 requests per 10 minutes per email)
+const emailRateLimits = new Map<string, { count: number; expiresAt: number }>();
+function checkRateLimit(key: string, max = 5, windowMs = 10 * 60 * 1000): boolean {
+  const now = Date.now();
+  const entry = emailRateLimits.get(key);
+  if (!entry || now > entry.expiresAt) {
+    emailRateLimits.set(key, { count: 1, expiresAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= max) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { to, subject, type, name, otpCode, orderDetails, message } = body;
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (!to) {
+      return NextResponse.json(
+        { success: false, error: 'Alamat email tujuan (to) wajib diisi' },
+        { status: 400 }
+      );
+    }
+
+    const cleanTo = String(to).toLowerCase().trim();
+    if (!checkRateLimit(cleanTo)) {
+      return NextResponse.json(
+        { success: false, error: 'Terlalu banyak permintaan pengiriman email. Silakan tunggu 10 menit lagi.' },
+        { status: 429 }
+      );
+    }
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
@@ -13,8 +43,10 @@ export async function POST(req: Request) {
         return NextResponse.json({
           success: true,
           demoMode: true,
-          otpCode,
-          notice: `ℹ️ Mode Pengujian: RESEND_API_KEY belum diset di server. Kode OTP 6-digit Anda: ${otpCode || '123456'}`
+          otpCode: isProduction ? undefined : otpCode,
+          notice: isProduction 
+            ? 'Kode verifikasi telah dikirimkan ke email Anda.' 
+            : `ℹ️ Mode Pengujian: RESEND_API_KEY belum diset di server. Kode OTP 6-digit Anda: ${otpCode || '123456'}`
         });
       }
       return NextResponse.json({
@@ -25,13 +57,6 @@ export async function POST(req: Request) {
     }
 
     const resend = new Resend(apiKey);
-
-    if (!to) {
-      return NextResponse.json(
-        { success: false, error: 'Alamat email tujuan (to) wajib diisi' },
-        { status: 400 }
-      );
-    }
 
     let htmlContent = '';
     let emailSubject = subject || 'Notifikasi UMKM Maleber';
@@ -129,8 +154,10 @@ export async function POST(req: Request) {
         return NextResponse.json({
           success: true,
           demoMode: true,
-          otpCode,
-          notice: `ℹ️ Mode Simulasi: (Resend: ${data.error.message}). Kode OTP pengujian 6-digit Anda: ${otpCode || '123456'}`
+          otpCode: isProduction ? undefined : otpCode,
+          notice: isProduction 
+            ? 'Kode verifikasi telah dikirimkan ke email Anda.' 
+            : `ℹ️ Mode Simulasi: (Resend: ${data.error.message}). Kode OTP pengujian 6-digit Anda: ${otpCode || '123456'}`
         });
       }
       return NextResponse.json({ success: false, error: data.error.message }, { status: 400 });

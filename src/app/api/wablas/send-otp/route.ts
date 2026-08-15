@@ -1,9 +1,24 @@
 import { NextResponse } from 'next/server';
 
+// In-memory rate limiter (max 5 requests per 10 minutes per phone number)
+const waRateLimits = new Map<string, { count: number; expiresAt: number }>();
+function checkRateLimit(key: string, max = 5, windowMs = 10 * 60 * 1000): boolean {
+  const now = Date.now();
+  const entry = waRateLimits.get(key);
+  if (!entry || now > entry.expiresAt) {
+    waRateLimits.set(key, { count: 1, expiresAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= max) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { phone, otpCode, name } = body;
+    const isProduction = process.env.NODE_ENV === 'production';
 
     if (!phone || !otpCode) {
       return NextResponse.json(
@@ -12,25 +27,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiToken = process.env.WABLAS_API_TOKEN;
-    const apiUrl = process.env.WABLAS_API_URL || 'https://solo.wablas.com';
-
-    if (!apiToken) {
-      console.warn('WABLAS_API_TOKEN not configured. Falling back to Demo Mode.');
-      return NextResponse.json({
-        success: true,
-        demoMode: true,
-        otpCode,
-        notice: `ℹ️ Mode Demo WhatsApp: WABLAS_API_TOKEN belum diset di server. Kode OTP 6-digit Anda: ${otpCode}`
-      });
-    }
-
     // Normalisasi nomor telepon ke format internasional (62xxx)
     let normalizedPhone = phone.replace(/[^0-9]/g, '');
     if (normalizedPhone.startsWith('0')) {
       normalizedPhone = '62' + normalizedPhone.slice(1);
     } else if (!normalizedPhone.startsWith('62')) {
       normalizedPhone = '62' + normalizedPhone;
+    }
+
+    if (!checkRateLimit(normalizedPhone)) {
+      return NextResponse.json(
+        { success: false, error: 'Terlalu banyak permintaan OTP ke nomor ini. Silakan tunggu 10 menit lagi.' },
+        { status: 429 }
+      );
+    }
+
+    const apiToken = process.env.WABLAS_API_TOKEN;
+
+    if (!apiToken) {
+      console.warn('WABLAS_API_TOKEN not configured. Falling back to Demo Mode.');
+      return NextResponse.json({
+        success: true,
+        demoMode: true,
+        otpCode: isProduction ? undefined : otpCode,
+        notice: isProduction 
+          ? 'Kode OTP telah dikirimkan ke WhatsApp Anda.' 
+          : `ℹ️ Mode Demo WhatsApp: WABLAS_API_TOKEN belum diset di server. Kode OTP 6-digit Anda: ${otpCode}`
+      });
     }
 
     // Compose OTP message
@@ -62,7 +85,6 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
 
     let lastErrorMsg = '';
     let isSuccess = false;
-    let successResponse = null;
 
     for (const domain of candidateDomains) {
       try {
@@ -75,14 +97,13 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
           body: JSON.stringify({
             phone: normalizedPhone,
             message: message,
-            token: apiToken // Pass token in body as well for legacy Wablas nodes
+            token: apiToken
           }),
         });
 
         const data = await res.json();
         if (res.ok && data.status !== false) {
           isSuccess = true;
-          successResponse = data;
           break;
         } else {
           lastErrorMsg = data.message || data.error || 'Server Wablas menolak request';
@@ -99,14 +120,18 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
       });
     }
 
-    // Fallback: If device is expired or token invalid on Wablas free tier, allow testing with dev notice
+    // Fallback: If device is expired or token invalid
     console.warn(`Wablas OTP Warning: ${lastErrorMsg}. Fallback mode active.`);
     return NextResponse.json({
       success: true,
       fallbackMode: true,
-      otpCode: otpCode, // Include OTP code in response for testing if device is offline/expired
-      message: `[Mode Tes] Device WhatsApp Wablas tidak aktif (${lastErrorMsg}). Gunakan Kode OTP: ${otpCode}`,
-      notice: `Device Wablas (${lastErrorMsg}). Silakan scan QR ulang di Wablas Dashboard atau gunakan kode OTP tes.`
+      otpCode: isProduction ? undefined : otpCode,
+      message: isProduction
+        ? `Kode OTP telah dikirimkan ke WhatsApp ${normalizedPhone}.`
+        : `[Mode Tes] Device WhatsApp Wablas tidak aktif (${lastErrorMsg}). Gunakan Kode OTP: ${otpCode}`,
+      notice: isProduction
+        ? 'Silakan periksa WhatsApp Anda.'
+        : `Device Wablas (${lastErrorMsg}). Silakan scan QR ulang di Wablas Dashboard atau gunakan kode OTP tes.`
     });
 
   } catch (error: any) {

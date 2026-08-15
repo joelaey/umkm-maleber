@@ -108,55 +108,44 @@ export default function AuthModal({
     setErrorMsg('');
 
     try {
-      const cleanInput = identifier.trim().toLowerCase();
-      const cleanPhoneInput = identifier.replace(/[^0-9]/g, '');
+      const cleanInput = identifier.trim();
+      if (!cleanInput) {
+        setErrorMsg('Silakan masukkan email atau nomor WhatsApp Anda.');
+        setLoading(false);
+        return;
+      }
 
-      // Instant in-memory search in live users array or INITIAL_USERS
-      let foundUser = (users && users.length > 0 ? users : []).find((u) => {
-        const emailMatch = u.email?.toLowerCase() === cleanInput;
-        const phoneMatch = cleanPhoneInput.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneInput;
-        return emailMatch || phoneMatch;
+      if (!loginPassword) {
+        setErrorMsg('Silakan masukkan kata sandi Anda.');
+        setLoading(false);
+        return;
+      }
+
+      // Secure Server-side Authentication
+      const res = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'login',
+          data: {
+            identifier: cleanInput,
+            password: loginPassword
+          }
+        })
       });
 
-      if (!foundUser) {
-        foundUser = INITIAL_USERS.find((u) => {
-          const emailMatch = u.email?.toLowerCase() === cleanInput;
-          const phoneMatch = cleanPhoneInput.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneInput;
-          return emailMatch || phoneMatch;
-        });
-      }
+      const result = await res.json();
 
-      if (!foundUser) {
-        // Fallback: fetch from Supabase DB only if not found in memory
-        try {
-          const dbRes = await fetch('/api/db');
-          const dbData = await dbRes.json();
-          if (dbData.success && dbData.users) {
-            foundUser = dbData.users.find((u: UserProfile) => {
-              const emailMatch = u.email?.toLowerCase() === cleanInput;
-              const phoneMatch = cleanPhoneInput.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneInput;
-              return emailMatch || phoneMatch;
-            });
-          }
-        } catch (e) {}
-      }
-
-      if (!foundUser) {
-        setErrorMsg('Akun email atau nomor WhatsApp tidak ditemukan. Silakan periksa kembali!');
+      if (!res.ok || !result.success || !result.user) {
+        setErrorMsg(result.error || 'Akun atau kata sandi tidak valid. Silakan coba kembali.');
         setLoading(false);
         return;
       }
 
-      if (foundUser.password && !verifyPassword(loginPassword, foundUser.password)) {
-        setErrorMsg('Kata sandi yang Anda masukkan salah. Silakan coba lagi!');
-        setLoading(false);
-        return;
-      }
-
-      onAuthSuccess(foundUser);
+      onAuthSuccess(result.user);
       onClose();
     } catch (err) {
-      setErrorMsg('Gagal memproses autentikasi. Silakan coba kembali!');
+      setErrorMsg('Gagal memproses autentikasi ke server. Silakan periksa koneksi internet Anda!');
     } finally {
       setLoading(false);
     }

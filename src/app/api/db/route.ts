@@ -188,7 +188,6 @@ export async function GET() {
       name: u.name,
       email: u.email,
       phone: u.phone,
-      password: u.password,
       role: u.email === 'superadmin@maleber.des.id' ? 'superadmin' : (u.role || 'buyer'),
       avatar: u.avatar || ''
     }));
@@ -348,6 +347,54 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action, data } = body;
+
+    if (action === 'login') {
+      const { identifier, password } = data;
+      const cleanInput = (identifier || '').trim().toLowerCase();
+      const cleanPhone = (identifier || '').replace(/[^0-9]/g, '');
+
+      if (!cleanInput && !cleanPhone) {
+        return NextResponse.json({ success: false, error: 'Email atau nomor WhatsApp wajib diisi' }, { status: 400 });
+      }
+
+      const profRes = await queryDb(
+        `SELECT id, name, email, phone, password, role, avatar FROM public.profiles 
+         WHERE (email IS NOT NULL AND LOWER(email) = LOWER($1)) 
+            OR (phone IS NOT NULL AND REPLACE(phone, ' ', '') = $2) 
+         LIMIT 1`,
+        [cleanInput || '___none___', cleanPhone || '___none___']
+      ).catch(() => ({ rows: [] }));
+
+      const profile = profRes.rows[0];
+
+      if (!profile) {
+        return NextResponse.json({
+          success: false,
+          error: 'Akun email atau nomor WhatsApp tidak ditemukan. Silakan periksa kembali atau daftar akun baru!'
+        }, { status: 400 });
+      }
+
+      if (profile.password) {
+        const isValid = verifyPassword(password || '', profile.password);
+        if (!isValid) {
+          return NextResponse.json({
+            success: false,
+            error: 'Kata sandi yang Anda masukkan salah. Silakan coba lagi!'
+          }, { status: 400 });
+        }
+      }
+
+      const safeUser = {
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        phone: profile.phone,
+        role: profile.email === 'superadmin@maleber.des.id' ? 'superadmin' : (profile.role || 'buyer'),
+        avatar: profile.avatar || ''
+      };
+
+      return NextResponse.json({ success: true, user: safeUser });
+    }
 
     if (action === 'register_user') {
       const { id, name, email, phone, password, role, avatar } = data;

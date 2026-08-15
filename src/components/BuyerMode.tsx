@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { Store, Product, DriverInfo, Order, RideRequest, UserRole, UserProfile, SavedAddress, PlacePOI } from '@/types';
 import MapComponent from './MapComponent';
+import RouteMapComponent from './RouteMapComponent';
 import { MALEBER_CENTER, INITIAL_PLACES } from '@/lib/mockData';
 import { calculateRoadDistance, calculateOjekFare, formatDistanceText, getOSRMRoute, getDistanceMeters } from '@/lib/geoUtils';
 import { ShoppingBag, Bike, Star, Clock, MapPin, Search, ArrowRight, ShieldCheck, CheckCircle2, ChevronRight, XCircle, AlertCircle, MessageSquare, Crosshair, Activity, FileText } from 'lucide-react';
@@ -890,16 +891,10 @@ export default function BuyerMode({
                     <MapPin className="w-4 h-4 text-emerald-600" />
                     Rute Perjalanan
                   </h4>
-                  <div className="h-52 sm:h-64 md:h-80 w-full rounded-2xl overflow-hidden border-2 border-emerald-500/30 shadow-xl">
-                    <MapComponent
+                  <div className="h-52 sm:h-64 md:h-80 w-full rounded-2xl overflow-hidden shadow-xl">
+                    <RouteMapComponent
                       key={`route-${pickupSpot.lat.toFixed(4)}-${destSpot.lat.toFixed(4)}`}
                       className="h-full w-full rounded-none"
-                      center={{ lat: (pickupSpot.lat + destSpot.lat) / 2, lng: (pickupSpot.lng + destSpot.lng) / 2 }}
-                      zoom={14}
-                      stores={[]}
-                      drivers={drivers}
-                      places={places}
-                      forceStreetMode={true}
                       pickupLocation={{ lat: pickupSpot.lat, lng: pickupSpot.lng, address: pickupSpot.name }}
                       destLocation={{ lat: destSpot.lat, lng: destSpot.lng, address: destSpot.name }}
                     />
@@ -1494,15 +1489,13 @@ export default function BuyerMode({
                       </span>
                     </div>
 
-                    <div className="h-60 sm:h-72 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-inner">
-                      <MapComponent
+                    <div className="h-60 sm:h-72 rounded-2xl overflow-hidden shadow-inner">
+                      <RouteMapComponent
                         pickupLocation={pickupLoc}
                         destLocation={destLoc}
-                        drivers={drivers}
-                        places={places}
-                        activeRouteStatus={item.status}
+                        activeDriver={drivers.find((d) => d.isOnline) || null}
                         isHistoricalView={isFinished}
-                        forceStreetMode={true}
+                        className="w-full h-full rounded-none"
                       />
                     </div>
                   </div>

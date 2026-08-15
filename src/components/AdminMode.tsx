@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Store, DriverInfo, Order, RideRequest, UserRole, PlacePOI, PasswordResetRequest } from '@/types';
 import MapComponent from './MapComponent';
+import RouteMapComponent from './RouteMapComponent';
 import AvatarCropModal from './AvatarCropModal';
 import { INITIAL_PLACES } from '@/lib/mockData';
 import { ShieldCheck, Store as StoreIcon, Bike, Users, FileText, CheckCircle2, TrendingUp, Layers, Plus, UserCheck, ShieldAlert, X, Building2, Crown, Lock, UserPlus, Key, Eye, Radio, Activity, MapPin, Sparkles, Edit, Trash2, Send, Camera, Upload } from 'lucide-react';
@@ -1445,8 +1446,8 @@ export default function AdminMode({
                 </span>
               </div>
 
-              <div className="h-60 sm:h-72 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-inner">
-                <MapComponent
+              <div className="h-60 sm:h-72 rounded-2xl overflow-hidden shadow-inner">
+                <RouteMapComponent
                   pickupLocation={
                     selectedAdminDetail.type === 'order'
                       ? { lat: (selectedAdminDetail.data as Order).lat, lng: (selectedAdminDetail.data as Order).lng, address: (selectedAdminDetail.data as Order).storeName }
@@ -1457,9 +1458,9 @@ export default function AdminMode({
                       ? { lat: (selectedAdminDetail.data as Order).lat - 0.0055, lng: (selectedAdminDetail.data as Order).lng + 0.0042, address: (selectedAdminDetail.data as Order).deliveryAddress }
                       : { lat: (selectedAdminDetail.data as RideRequest).destLat, lng: (selectedAdminDetail.data as RideRequest).destLng, address: (selectedAdminDetail.data as RideRequest).destAddress }
                   }
-                  drivers={drivers}
-                  stores={stores}
+                  activeDriver={drivers.find((d) => d.isOnline) || null}
                   isHistoricalView={selectedAdminDetail.data.status === 'completed' || selectedAdminDetail.data.status === 'cancelled'}
+                  className="w-full h-full rounded-none"
                 />
               </div>
             </div>

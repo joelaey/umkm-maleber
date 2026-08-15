@@ -12,7 +12,9 @@ import CartModal from '@/components/CartModal';
 import AuthModal from '@/components/AuthModal';
 import ProfileModal from '@/components/ProfileModal';
 import ChatModal from '@/components/ChatModal';
+import { LegalModal } from '@/components/LegalModal';
 import ToastContainer, { ToastMessage, ToastType } from '@/components/Toast';
+import { playNotificationSound } from '@/lib/soundAlert';
 
 import { UserRole, UserProfile, Store, Product, CartItem, Order, RideRequest, DriverInfo, ChatMessage, Review, PlacePOI, PasswordResetRequest } from '@/types';
 import { triggerSystemNotification } from '@/lib/notificationUtils';
@@ -93,6 +95,8 @@ export default function Home() {
   const [resetRequests, setResetRequests] = useState<PasswordResetRequest[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isLegalOpen, setIsLegalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<'privacy' | 'terms'>('privacy');
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeChatTarget, setActiveChatTarget] = useState<{
@@ -1003,9 +1007,39 @@ export default function Home() {
       </div>
 
       {/* Global Footer */}
-      <footer className="bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 py-6 text-center text-xs font-bold text-zinc-500 dark:text-zinc-400">
-        <p>&copy; 2026 KKN 190 UIN SGD X UIN GUSDUR MALEBER</p>
+      <footer className="bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 py-6 px-4 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p>&copy; 2026 Pemerintah Desa Maleber &bull; KKN 190 UIN SGD x UIN GUSDUR</p>
+          <div className="flex items-center gap-4 text-xs">
+            <button
+              onClick={() => {
+                setLegalTab('privacy');
+                setIsLegalOpen(true);
+              }}
+              className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors underline-offset-4 hover:underline"
+            >
+              Kebijakan Privasi
+            </button>
+            <span>&bull;</span>
+            <button
+              onClick={() => {
+                setLegalTab('terms');
+                setIsLegalOpen(true);
+              }}
+              className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors underline-offset-4 hover:underline"
+            >
+              Syarat & Ketentuan
+            </button>
+          </div>
+        </div>
       </footer>
+
+      {/* Legal Privacy & Terms Modal */}
+      <LegalModal
+        isOpen={isLegalOpen}
+        onClose={() => setIsLegalOpen(false)}
+        initialTab={legalTab}
+      />
 
       {/* Cart Modal */}
       <CartModal

@@ -102,8 +102,8 @@ export default function MapComponent({
   return (
     <div className={`relative overflow-hidden border border-emerald-200/30 dark:border-zinc-800 ${className}`}>
       
-      {/* Google Maps Style Live Search Bar (Hidden in Historical View & Selection Mode to avoid clutter) */}
-      {!isHistoricalView && !selectionMode && (
+      {/* Google Maps Style Live Search Bar (Hidden in Route View, Historical View & Selection Mode) */}
+      {!isHistoricalView && !selectionMode && !hideControls && (!pickupLocation || !destLocation) && (
         <div className="absolute z-[1000] max-w-[220px] sm:max-w-xs w-full top-3 left-3">
           <div className="relative">
             <div className="glass-dark border border-emerald-500/30 rounded-2xl p-1.5 flex items-center gap-2 shadow-2xl">
@@ -142,8 +142,8 @@ export default function MapComponent({
         </div>
       )}
 
-      {/* Map Control Bar Top Floating (Hidden in Historical View or when hideControls is true) */}
-      {!isHistoricalView && !hideControls && (
+      {/* Map Control Bar Top Floating (Hidden when viewing travel route or when hideControls is true) */}
+      {!isHistoricalView && !hideControls && (!pickupLocation || !destLocation) && (
         <div className={`absolute z-[1000] flex items-center gap-1.5 transition-all ${
           selectionMode ? 'top-16 right-3' : 'top-3 right-3'
         }`}>
@@ -184,8 +184,8 @@ export default function MapComponent({
         </div>
       )}
 
-      {/* Status Badge Indicator (Hidden in Selection Mode or when hideControls is true) */}
-      {!isHistoricalView && !selectionMode && !hideControls && (
+      {/* Status Badge Indicator (Hidden in Route View, Selection Mode or when hideControls is true) */}
+      {!isHistoricalView && !selectionMode && !hideControls && (!pickupLocation || !destLocation) && (
         <div className="absolute bottom-3 left-3 z-[1000] pointer-events-none">
           <div className="bg-zinc-900/90 backdrop-blur-md text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded-full border border-emerald-500/30 shadow-lg flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -211,6 +211,7 @@ export default function MapComponent({
           center={center}
           tileMode={mapTileMode}
           isHistoricalView={isHistoricalView}
+          hideControls={hideControls}
           forceStreetMode={forceStreetMode}
           onRegisterReset={(resetFn) => (triggerResetRef.current = resetFn)}
           onRegisterFocusUserLocation={(focusFn) => (triggerFocusUserLocationRef.current = focusFn)}
@@ -244,6 +245,7 @@ function LeafletMapView({
   center,
   tileMode,
   isHistoricalView,
+  hideControls,
   onRegisterReset,
   onRegisterFocusUserLocation
 }: {
@@ -262,6 +264,7 @@ function LeafletMapView({
   center: { lat: number; lng: number };
   tileMode: 'satellite' | 'street';
   isHistoricalView?: boolean;
+  hideControls?: boolean;
   forceStreetMode?: boolean;
   onRegisterReset: (fn: () => void) => void;
   onRegisterFocusUserLocation: (fn: () => void) => void;
@@ -303,7 +306,9 @@ function LeafletMapView({
       zoomControl: false
     });
 
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    if (!isHistoricalView && !hideControls && (!pickupLocation || !destLocation)) {
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+    }
 
     // Track user drag / zoom interactions so background data refresh doesn't override camera pan
     map.on('dragstart', () => {
@@ -492,82 +497,85 @@ function LeafletMapView({
     const group = layerGroupRef.current;
     group.clearLayers();
 
-    // 0. Places of Interest Markers (Google Maps Style POIs)
-    (places || []).forEach((poi) => {
-      const categoryGradients: Record<string, string> = {
-        Pemerintahan: 'linear-gradient(135deg,#059669,#10b981)',
-        Ibadah: 'linear-gradient(135deg,#d97706,#f59e0b)',
-        Pendidikan: 'linear-gradient(135deg,#7c3aed,#8b5cf6)',
-        Kesehatan: 'linear-gradient(135deg,#dc2626,#ef4444)',
-        Olahraga: 'linear-gradient(135deg,#2563eb,#3b82f6)',
-        Perdagangan: 'linear-gradient(135deg,#ea580c,#f97316)',
-        Wisata: 'linear-gradient(135deg,#0284c7,#06b6d4)'
-      };
-      const bg = categoryGradients[poi.category] || 'linear-gradient(135deg,#4b5563,#6b7280)';
+    const hasActiveRouteTracking = Boolean(pickupLocation && destLocation);
 
-      const poiIcon = L.divIcon({
-        className: 'custom-leaflet-marker',
-        html: `
-          <div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:${bg};border-radius:50%;border:2.5px solid white;box-shadow:0 4px 14px rgba(0,0,0,0.3);font-size:16px;transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform='scale(1)'">
-            ${poi.icon}
+    // 0. Places of Interest Markers (Only in default map view)
+    if (!selectionMode && !hasActiveRouteTracking) {
+      (places || []).forEach((poi) => {
+        const categoryGradients: Record<string, string> = {
+          Pemerintahan: 'linear-gradient(135deg,#059669,#10b981)',
+          Ibadah: 'linear-gradient(135deg,#d97706,#f59e0b)',
+          Pendidikan: 'linear-gradient(135deg,#7c3aed,#8b5cf6)',
+          Kesehatan: 'linear-gradient(135deg,#dc2626,#ef4444)',
+          Olahraga: 'linear-gradient(135deg,#2563eb,#3b82f6)',
+          Perdagangan: 'linear-gradient(135deg,#ea580c,#f97316)',
+          Wisata: 'linear-gradient(135deg,#0284c7,#06b6d4)'
+        };
+        const bg = categoryGradients[poi.category] || 'linear-gradient(135deg,#4b5563,#6b7280)';
+
+        const poiIcon = L.divIcon({
+          className: 'custom-leaflet-marker',
+          html: `
+            <div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:${bg};border-radius:50%;border:2.5px solid white;box-shadow:0 4px 14px rgba(0,0,0,0.3);font-size:16px;transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform='scale(1)'">
+              ${poi.icon}
+            </div>
+          `,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
+        });
+
+        const marker = L.marker([poi.lat, poi.lng], { icon: poiIcon });
+        marker.bindPopup(`
+          <div style="font-family:'Plus Jakarta Sans',system-ui;padding:4px;min-width:200px;">
+            ${poi.image ? `<img src="${poi.image}" style="width:100%;height:90px;border-radius:10px;object-fit:cover;margin-bottom:8px;" alt="" />` : ''}
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:4px;">
+              <span style="font-size:10px;font-weight:800;background:#ecfdf5;color:#047857;padding:2px 8px;border-radius:999px;">${poi.category}</span>
+              <span style="font-size:10px;color:#a1a1aa;font-family:monospace;">${poi.lat.toFixed(4)}, ${poi.lng.toFixed(4)}</span>
+            </div>
+            <h4 style="font-weight:800;color:#18181b;margin:0 0 2px;font-size:13px;line-height:1.3;">${poi.icon} ${poi.name}</h4>
+            <p style="font-size:10px;color:#71717a;margin:0 0 6px;">${poi.address}</p>
+            ${poi.description ? `<p style="font-size:11px;color:#3f3f46;margin:0 0 6px;line-height:1.3;">${poi.description}</p>` : ''}
           </div>
-        `,
-        iconSize: [34, 34],
-        iconAnchor: [17, 17]
+        `);
+        group.addLayer(marker);
       });
 
-      const marker = L.marker([poi.lat, poi.lng], { icon: poiIcon });
-      marker.bindPopup(`
-        <div style="font-family:'Plus Jakarta Sans',system-ui;padding:4px;min-width:200px;">
-          ${poi.image ? `<img src="${poi.image}" style="width:100%;height:90px;border-radius:10px;object-fit:cover;margin-bottom:8px;" alt="" />` : ''}
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:4px;">
-            <span style="font-size:10px;font-weight:800;background:#ecfdf5;color:#047857;padding:2px 8px;border-radius:999px;">${poi.category}</span>
-            <span style="font-size:10px;color:#a1a1aa;font-family:monospace;">${poi.lat.toFixed(4)}, ${poi.lng.toFixed(4)}</span>
-          </div>
-          <h4 style="font-weight:800;color:#18181b;margin:0 0 2px;font-size:13px;line-height:1.3;">${poi.icon} ${poi.name}</h4>
-          <p style="font-size:10px;color:#71717a;margin:0 0 6px;">${poi.address}</p>
-          ${poi.description ? `<p style="font-size:11px;color:#3f3f46;margin:0 0 6px;line-height:1.3;">${poi.description}</p>` : ''}
-        </div>
-      `);
-      group.addLayer(marker);
-    });
+      // 1. Store Markers with popups
+      stores.forEach((store) => {
+        const storeIcon = L.divIcon({
+          className: 'custom-leaflet-marker',
+          html: `
+            <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;border:2.5px solid white;box-shadow:0 4px 14px rgba(245,158,11,0.35);font-size:16px;transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+              🏪
+            </div>
+          `,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18]
+        });
 
-    // 1. Store Markers with popups
-    stores.forEach((store) => {
-      const storeIcon = L.divIcon({
-        className: 'custom-leaflet-marker',
-        html: `
-          <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;border:2.5px solid white;box-shadow:0 4px 14px rgba(245,158,11,0.35);font-size:16px;transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
-            🏪
-          </div>
-        `,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
-      });
-
-      const marker = L.marker([store.lat, store.lng], { icon: storeIcon });
-      marker.bindPopup(`
-        <div style="font-family:'Plus Jakarta Sans',system-ui;padding:4px;min-width:180px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <img src="${store.image}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;" alt="" />
-            <div>
-              <h4 style="font-weight:800;color:#047857;margin:0;font-size:13px;line-height:1.3;">${store.name}</h4>
-              <p style="font-size:10px;margin:2px 0 0;color:#71717a;">${store.category} &bull; ${store.ownerName}</p>
+        const marker = L.marker([store.lat, store.lng], { icon: storeIcon });
+        marker.bindPopup(`
+          <div style="font-family:'Plus Jakarta Sans',system-ui;padding:4px;min-width:180px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <img src="${store.image}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;" alt="" />
+              <div>
+                <h4 style="font-weight:800;color:#047857;margin:0;font-size:13px;line-height:1.3;">${store.name}</h4>
+                <p style="font-size:10px;margin:2px 0 0;color:#71717a;">${store.category} &bull; ${store.ownerName}</p>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;background:#fef3c7;padding:4px 8px;border-radius:8px;">
+              <span style="font-size:12px;">⭐</span>
+              <span style="font-weight:800;color:#92400e;font-size:12px;">${store.rating || '0.0'}</span>
+              <span style="font-size:10px;color:#92400e;opacity:0.7;">(${store.reviewCount || 0} ulasan)</span>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:4px;background:#fef3c7;padding:4px 8px;border-radius:8px;">
-            <span style="font-size:12px;">⭐</span>
-            <span style="font-weight:800;color:#92400e;font-size:12px;">${store.rating || '0.0'}</span>
-            <span style="font-size:10px;color:#92400e;opacity:0.7;">(${store.reviewCount || 0} ulasan)</span>
-          </div>
-        </div>
-      `);
-      group.addLayer(marker);
-    });
+        `);
+        group.addLayer(marker);
+      });
+    }
 
-    // 2. Dead-Reckoning Algorithmic Driver Motion (Skip in Historical View or Live Route Tracking to prevent double driver icons)
+    // 2. Dead-Reckoning Algorithmic Driver Motion (Skip in Historical View or Live Route Tracking)
     const activeDriverMarkers: Map<string, any> = new Map();
-    const hasActiveRouteTracking = Boolean(pickupLocation && destLocation);
 
     if (!isHistoricalView && !hasActiveRouteTracking) {
       // Standby mode: Render online drivers near pickup location
@@ -699,15 +707,15 @@ function LeafletMapView({
         const roadDistStr = formatDistanceText(routeRes.distanceKm);
         const etaMins = routeRes.durationMins || Math.max(1, Math.round(routeRes.distanceKm * 3));
 
-        // Dark Solid Outline Border Line (Gojek Contrast Style)
-        const outlineLine = L.polyline(polylineCoords, {
-          color: '#022c22',
-          weight: 9,
-          opacity: 0.5,
+        // Modern Soft Emerald Halo Line (Clean Modern Navigation Style)
+        const haloLine = L.polyline(polylineCoords, {
+          color: '#34d399',
+          weight: 10,
+          opacity: 0.25,
           lineCap: 'round',
           lineJoin: 'round'
         });
-        group.addLayer(outlineLine);
+        group.addLayer(haloLine);
 
         // Delayed fitBounds and invalidateSize to ensure modal rendering is finished & camera centered on route
         setTimeout(() => {

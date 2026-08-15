@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { DriverInfo, RideRequest, Order, Review, UserRole } from '@/types';
 import MapComponent from './MapComponent';
+import RouteMapComponent from './RouteMapComponent';
 import { Bike, Navigation, DollarSign, CheckCircle2, MapPin, Phone, Shield, ArrowRight, Star, MessageSquare, AlertCircle, ShoppingBag, Store, User } from 'lucide-react';
 import { calculateOrderFees, calculateRideFees, DRIVER_COMMISSION_RATE, formatRupiah } from '@/lib/feeCalculator';
 
@@ -381,8 +382,8 @@ export default function DriverMode({
               </div>
 
               {/* Live Tracking Map for Active Ride (Gojek / Buyer Style) */}
-              <div className="h-64 sm:h-72 rounded-2xl overflow-hidden border border-white/20 shadow-inner">
-                <MapComponent
+              <div className="h-64 sm:h-72 rounded-2xl overflow-hidden shadow-inner">
+                <RouteMapComponent
                   pickupLocation={
                     activeRide.status === 'accepted' || activeRide.status === 'arrived_pickup'
                       ? { lat: currentCoords?.lat ?? driver.lat, lng: currentCoords?.lng ?? driver.lng, address: 'Lokasi Anda (Driver)' }
@@ -393,11 +394,8 @@ export default function DriverMode({
                       ? { lat: activeRide.pickupLat, lng: activeRide.pickupLng, address: activeRide.pickupAddress }
                       : { lat: activeRide.destLat, lng: activeRide.destLng, address: activeRide.destAddress }
                   }
-                  drivers={[{ ...driver, lat: currentCoords?.lat ?? driver.lat, lng: currentCoords?.lng ?? driver.lng }]}
-                  center={{ lat: currentCoords?.lat ?? driver.lat, lng: currentCoords?.lng ?? driver.lng }}
-                  zoom={17}
-                  activeRouteStatus={activeRide.status}
-                  forceStreetMode={true}
+                  activeDriver={{ ...driver, lat: currentCoords?.lat ?? driver.lat, lng: currentCoords?.lng ?? driver.lng }}
+                  className="w-full h-full rounded-none"
                 />
               </div>
 
@@ -462,7 +460,7 @@ export default function DriverMode({
                   const isHeadingToStore = activeFoodDelivery.status === 'pending' || activeFoodDelivery.status === 'cooking' || activeFoodDelivery.status === 'ready_for_pickup';
                   const activeDrv = { ...driver, lat: currentCoords?.lat ?? driver.lat, lng: currentCoords?.lng ?? driver.lng };
                   return (
-                    <MapComponent
+                    <RouteMapComponent
                       pickupLocation={
                         isHeadingToStore
                           ? { lat: activeDrv.lat, lng: activeDrv.lng, address: 'Lokasi Anda (Driver)' }
@@ -473,11 +471,8 @@ export default function DriverMode({
                           ? { lat: storePos.lat, lng: storePos.lng, address: activeFoodDelivery.storeName }
                           : { lat: storePos.lat - 0.0055, lng: storePos.lng + 0.0042, address: activeFoodDelivery.deliveryAddress }
                       }
-                      drivers={[activeDrv]}
-                      center={{ lat: activeDrv.lat, lng: activeDrv.lng }}
-                      zoom={17}
-                      activeRouteStatus={activeFoodDelivery.status}
-                      forceStreetMode={true}
+                      activeDriver={activeDrv}
+                      className="w-full h-full rounded-none"
                     />
                   );
                 })()}
@@ -876,14 +871,13 @@ export default function DriverMode({
                       </span>
                     </div>
 
-                    <div className="h-60 sm:h-72 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-inner">
-                      <MapComponent
+                    <div className="h-60 sm:h-72 rounded-2xl overflow-hidden shadow-inner">
+                      <RouteMapComponent
                         pickupLocation={pickupLoc}
                         destLocation={destLoc}
-                        drivers={[driver]}
-                        activeRouteStatus={item.status}
+                        activeDriver={driver}
                         isHistoricalView={isFinished}
-                        forceStreetMode={true}
+                        className="w-full h-full rounded-none"
                       />
                     </div>
                   </div>

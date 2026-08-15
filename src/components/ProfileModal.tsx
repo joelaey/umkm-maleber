@@ -331,15 +331,6 @@ export default function ProfileModal({
       return;
     }
 
-    const userPass = user.password || '';
-    if (userPass) {
-      const isCurrentValid = verifyPassword(currentPasswordInput, userPass);
-      if (!isCurrentValid) {
-        setPasswordError('⚠️ Kata sandi lama Anda salah! Silakan periksa kembali.');
-        return;
-      }
-    }
-
     if (newPasswordInput.length < 6) {
       setPasswordError('⚠️ Kata sandi baru minimal 6 karakter!');
       return;
@@ -371,22 +362,24 @@ export default function ProfileModal({
       });
 
       const data = await res.json();
-      if (data.success) {
-        const updatedUser: UserProfile = {
-          ...user,
-          password: hashed
-        };
-        onSaveProfile(updatedUser);
-
-        setPasswordSuccess('✅ Kata sandi akun Anda berhasil diperbarui!');
-        setCurrentPasswordInput('');
-        setNewPasswordInput('');
-        setConfirmNewPasswordInput('');
-      } else {
-        setPasswordError(`⚠️ ${data.error || 'Gagal mengubah kata sandi'}`);
+      if (!res.ok || !data.success) {
+        setPasswordError(data.error || '⚠️ Gagal memperbarui kata sandi. Periksa kata sandi lama Anda.');
+        setPasswordLoading(false);
+        return;
       }
-    } catch (err: any) {
-      setPasswordError(`⚠️ Terjadi kesalahan: ${err.message}`);
+
+      const updatedUser: UserProfile = {
+        ...user,
+        password: hashed
+      };
+      onSaveProfile(updatedUser);
+
+      setPasswordSuccess('✅ Kata sandi Anda berhasil diperbarui!');
+      setCurrentPasswordInput('');
+      setNewPasswordInput('');
+      setConfirmNewPasswordInput('');
+    } catch (err) {
+      setPasswordError('⚠️ Terjadi kendala saat menghubungi server. Silakan coba kembali.');
     } finally {
       setPasswordLoading(false);
     }
