@@ -72,62 +72,49 @@ Kode verifikasi akun kamu:
 _Dikirim otomatis oleh sistem UMKM Maleber_
 🏘️ Desa Maleber, Kec. Karangtengah, Kab. Cianjur`;
 
-    // Array of possible Wablas server domain nodes
-    const primaryDomain = process.env.WABLAS_API_URL || 'https://tegal.wablas.com';
-    const candidateDomains = [
-      primaryDomain,
-      'https://tegal.wablas.com',
-      'https://solo.wablas.com',
-      'https://console.wablas.com',
-      'https://wablas.com',
-      'https://kudus.wablas.com',
-      'https://jogja.wablas.com',
-      'https://bdg.wablas.com'
-    ].filter((v, i, a) => a.indexOf(v) === i);
+    // Direct fast dispatch to Wablas server node
+    const domain = process.env.WABLAS_API_URL || 'https://tegal.wablas.com';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    let lastErrorMsg = '';
-    let isSuccess = false;
-
-    for (const domain of candidateDomains) {
-      try {
-        const res = await fetch(`${domain}/api/send-message`, {
-          method: 'POST',
-          headers: {
-            'Authorization': apiToken,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            phone: normalizedPhone,
-            message: message,
-            token: apiToken
-          }),
-        });
-
-        const data = await res.json();
-        if (res.ok && data.status !== false) {
-          isSuccess = true;
-          break;
-        } else {
-          lastErrorMsg = data.message || data.error || 'Server Wablas menolak request';
-        }
-      } catch (err: any) {
-        lastErrorMsg = err.message || 'Gagal koneksi ke server Wablas';
-      }
-    }
-
-    if (isSuccess) {
-      return NextResponse.json({
-        success: true,
-        message: `OTP berhasil dikirim ke nomor WhatsApp ${normalizedPhone}`,
+    try {
+      const res = await fetch(`${domain}/api/send-message`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Authorization': apiToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: normalizedPhone,
+          message: message,
+          token: apiToken
+        }),
       });
-    }
+      clearTimeout(timeoutId);
 
-    // If device is expired or token invalid, return honest descriptive error
-    console.error(`Wablas OTP Error: ${lastErrorMsg}`);
-    return NextResponse.json({
-      success: false,
-      error: `Pengiriman WhatsApp gagal (${lastErrorMsg}). Pastikan perangkat WhatsApp di Wablas berstatus CONNECTED (Hijau), atau pilih opsi "Verifikasi via Email".`
-    }, { status: 400 });
+      const data = await res.json();
+      if (res.ok && data.status !== false) {
+        return NextResponse.json({
+          success: true,
+          message: `OTP berhasil dikirim ke nomor WhatsApp ${normalizedPhone}`,
+        });
+      } else {
+        const errorMsg = data.message || data.error || 'Server Wablas menolak request';
+        console.error(`Wablas API Notice: ${errorMsg}`);
+        return NextResponse.json({
+          success: false,
+          error: `Pengiriman WhatsApp gagal (${errorMsg}). Pastikan perangkat WhatsApp di Wablas berstatus CONNECTED (Hijau), atau pilih opsi "Verifikasi via Email".`
+        }, { status: 400 });
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      console.error('Wablas connection error:', err.message);
+      return NextResponse.json({
+        success: false,
+        error: 'Koneksi ke server WhatsApp timed out. Silakan gunakan opsi "Verifikasi via Email" yang lebih cepat.'
+      }, { status: 504 });
+    }
 
   } catch (error: any) {
     console.error('Wablas OTP route error:', error);

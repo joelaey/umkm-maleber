@@ -1064,7 +1064,7 @@ export default function AuthModal({
             </p>
 
             <div className="space-y-3">
-              {/* Option A: Resend Email */}
+              {/* Option A: Email */}
               <button
                 type="button"
                 disabled={sendingOtp}
@@ -1076,7 +1076,10 @@ export default function AuthModal({
                     📧
                   </div>
                   <div>
-                    <h5 className="font-extrabold text-sm text-zinc-900 dark:text-white">Verifikasi via Email (Resend)</h5>
+                    <h5 className="font-extrabold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                      Verifikasi via Email
+                      {sendingOtp && selectedMethod === 'email' && <span className="text-[10px] text-emerald-600 font-semibold animate-pulse">Mengirim...</span>}
+                    </h5>
                     <p className="text-xs text-zinc-500 truncate max-w-[200px] sm:max-w-[240px]">Ke: {email}</p>
                   </div>
                 </div>
@@ -1095,7 +1098,10 @@ export default function AuthModal({
                     📱
                   </div>
                   <div>
-                    <h5 className="font-extrabold text-sm text-zinc-900 dark:text-white">Verifikasi via WhatsApp</h5>
+                    <h5 className="font-extrabold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                      Verifikasi via WhatsApp
+                      {sendingOtp && selectedMethod === 'whatsapp' && <span className="text-[10px] text-emerald-600 font-semibold animate-pulse">Mengirim...</span>}
+                    </h5>
                     <p className="text-xs text-zinc-500 truncate max-w-[200px] sm:max-w-[240px]">Ke: {phone}</p>
                   </div>
                 </div>
@@ -1120,7 +1126,7 @@ export default function AuthModal({
               <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/50 p-3.5 rounded-2xl text-emerald-800 dark:text-emerald-300 text-xs font-semibold space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-emerald-700 dark:text-emerald-200">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>OTP Dikirim ({selectedMethod === 'email' ? 'Resend Email' : 'WhatsApp'})</span>
+                  <span>OTP Dikirim ({selectedMethod === 'email' ? 'Email' : 'WhatsApp'})</span>
                 </div>
                 <p className="text-[11px] leading-tight text-emerald-900/90 dark:text-emerald-200/90">{otpSentMsg}</p>
               </div>
