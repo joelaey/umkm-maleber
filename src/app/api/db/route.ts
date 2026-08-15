@@ -12,6 +12,7 @@ function parseUuidOrNull(val: any) {
 let isDbInitialized = false;
 
 async function ensureDbInitialized() {
+  if (isDbInitialized) return;
   try {
     await queryDb(`
       CREATE TABLE IF NOT EXISTS public.profiles (
@@ -57,37 +58,21 @@ async function ensureDbInitialized() {
         description TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
-      ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS owner_name TEXT;
-      ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS phone TEXT;
-      ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS image TEXT;
-      ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
-      ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS description TEXT;
-      ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 5.0;
-      ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS review_count INT DEFAULT 1;
 
       CREATE TABLE IF NOT EXISTS public.driver_locations (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
+        name TEXT,
+        driver_name TEXT,
         phone TEXT,
         lat NUMERIC DEFAULT -6.8155,
         lng NUMERIC DEFAULT 107.1865,
         is_online BOOLEAN DEFAULT TRUE,
         rating NUMERIC DEFAULT 5.0,
         review_count INT DEFAULT 1,
-        vehicle_model TEXT DEFAULT 'Honda Beat Hitam',
+        vehicle_model TEXT DEFAULT 'Honda Vario 160',
         vehicle_number TEXT DEFAULT 'F 1234 MBR',
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS name TEXT;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS phone TEXT;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS lat NUMERIC DEFAULT -6.8155;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS lng NUMERIC DEFAULT 107.1865;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT TRUE;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS vehicle_model TEXT;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS vehicle_number TEXT;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 5.0;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS review_count INT DEFAULT 1;
-      ALTER TABLE public.driver_locations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
       CREATE TABLE IF NOT EXISTS public.driver_vehicles (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -110,48 +95,10 @@ async function ensureDbInitialized() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
-
-      UPDATE public.profiles SET role = 'superadmin' WHERE (email = 'superadmin@maleber.des.id' OR email = 'j@superadmin.com') AND role != 'superadmin';
-      INSERT INTO public.profiles (id, name, email, phone, password, role)
-      VALUES (
-        'a1111111-1111-4111-8111-111111111112',
-        'super admin j.',
-        'j@superadmin.com',
-        NULL,
-        '${hashPassword('a11101977')}',
-        'superadmin'
-      )
-      ON CONFLICT (email) DO UPDATE SET
-        name = 'super admin j.',
-        role = 'superadmin',
-        password = EXCLUDED.password;
-
-      -- Clean up legacy hardcoded dummy stores & drivers so database is 100% real
-      DELETE FROM public.stores WHERE id IN ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333');
-      DELETE FROM public.driver_locations WHERE id IN ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'c2222222-2222-4222-8222-222222222222', 'c3333333-3333-4333-8333-333333333333');
-
-      -- Auto-prune orders, rides, and messages older than 30 days
-      DELETE FROM public.orders WHERE created_at < NOW() - INTERVAL '30 days';
-      DELETE FROM public.ride_requests WHERE created_at < NOW() - INTERVAL '30 days';
-      DELETE FROM public.messages WHERE created_at < NOW() - INTERVAL '30 days';
-
-      -- Sync any registered profiles with role = 'driver' to public.driver_locations if missing
-      INSERT INTO public.driver_locations (id, name, driver_name, phone, lat, lng, is_online, rating, review_count, vehicle_model, vehicle_number)
-      SELECT id, name, name, COALESCE(phone, '081234567890'), -6.8155, 107.1865, TRUE, 5.0, 1, 'Motor Ojek Maleber', 'F 1000 MBR'
-      FROM public.profiles
-      WHERE role = 'driver'
-      ON CONFLICT (id) DO NOTHING;
-
-      -- Sync any registered profiles with role = 'seller' to public.stores if missing
-      INSERT INTO public.stores (id, owner_id, name, category, address, lat, lng, owner_name, phone, rating, review_count, image, is_active, description)
-      SELECT id, id, concat('Warung ', name), 'Kuliner', 'Desa Maleber, Karangtengah', -6.8155, 107.1865, name, COALESCE(phone, '081234567890'), 5.0, 1, 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80', TRUE, 'Toko UMKM Desa Maleber'
-      FROM public.profiles
-      WHERE role = 'seller'
-      ON CONFLICT (id) DO NOTHING;
     `);
     isDbInitialized = true;
   } catch (e: any) {
-    console.error('Profiles & Orders table init notice:', e.message);
+    console.error('Database schema init check notice:', e.message);
   }
 }
 

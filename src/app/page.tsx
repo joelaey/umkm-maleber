@@ -83,15 +83,15 @@ export default function Home() {
     }
   };
 
-  // Application Data State (Will be loaded from Supabase PostgreSQL live)
-  const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
-  const [stores, setStores] = useState<Store[]>(INITIAL_STORES);
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [drivers, setDrivers] = useState<DriverInfo[]>(INITIAL_DRIVERS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [rides, setRides] = useState<RideRequest[]>(INITIAL_RIDES);
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
-  const [places, setPlaces] = useState<PlacePOI[]>(INITIAL_PLACES);
+  // Application Data State (Loaded 100% Live from Supabase PostgreSQL)
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [drivers, setDrivers] = useState<DriverInfo[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [rides, setRides] = useState<RideRequest[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [places, setPlaces] = useState<PlacePOI[]>([]);
   const [resetRequests, setResetRequests] = useState<PasswordResetRequest[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
