@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   title: "UMKM Maleber - Digitalisasi & Ojek Online Desa",
   description: "Platform Jual-Beli UMKM, Kuliner, & Ojek Online Pemberdayaan Desa Maleber, Karangtengah, Cianjur",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
