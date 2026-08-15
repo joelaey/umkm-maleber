@@ -75,25 +75,37 @@ Kode verifikasi akun kamu:
 _Dikirim otomatis oleh sistem UMKM Maleber_
 🏘️ Desa Maleber, Kec. Karangtengah, Kab. Cianjur`;
 
+    const secretKey = (process.env.WABLAS_SECRET_KEY || process.env.SECRET_KEY || '').trim();
+
     // Direct fast dispatch to Wablas server node
     const domain = (process.env.WABLAS_API_URL || 'https://tegal.wablas.com').replace(/\/$/, '');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    const headersJson: Record<string, string> = {
+      'Authorization': apiToken,
+      'Content-Type': 'application/json',
+    };
+    if (secretKey) {
+      headersJson['secret'] = secretKey;
+    }
+
+    const payload: Record<string, any> = {
+      phone: normalizedPhone,
+      message: message,
+      token: apiToken,
+    };
+    if (secretKey) {
+      payload.secret = secretKey;
+    }
 
     try {
       // 1. Try standard JSON post
       let res = await fetch(`${domain}/api/send-message`, {
         method: 'POST',
         signal: controller.signal,
-        headers: {
-          'Authorization': apiToken,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: normalizedPhone,
-          message: message,
-          token: apiToken
-        }),
+        headers: headersJson,
+        body: JSON.stringify(payload),
       });
 
       let data: any = {};
@@ -106,18 +118,28 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
       // 2. Fallback to URL-encoded form data if needed
       if (!res.ok || data.status === false) {
         try {
+          const headersForm: Record<string, string> = {
+            'Authorization': apiToken,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          };
+          if (secretKey) {
+            headersForm['secret'] = secretKey;
+          }
+
+          const formBody = new URLSearchParams({
+            phone: normalizedPhone,
+            message: message,
+            token: apiToken
+          });
+          if (secretKey) {
+            formBody.append('secret', secretKey);
+          }
+
           const formRes = await fetch(`${domain}/api/send-message`, {
             method: 'POST',
             signal: controller.signal,
-            headers: {
-              'Authorization': apiToken,
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-              phone: normalizedPhone,
-              message: message,
-              token: apiToken
-            }),
+            headers: headersForm,
+            body: formBody,
           });
           const formData = await formRes.json();
           if (formRes.ok && formData.status !== false) {
@@ -139,7 +161,7 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
         console.error(`Wablas API Error: ${errorMsg}`);
         return NextResponse.json({
           success: false,
-          error: `Pengiriman WhatsApp gagal (${errorMsg}). Pastikan perangkat WhatsApp di Wablas berstatus CONNECTED (Hijau), atau pilih opsi "Verifikasi via Email".`
+          error: `Pengiriman WhatsApp gagal (${errorMsg}). Pastikan field "Whitelist IP" di Wablas sudah DIKOSONGKAN atau gunakan verifikasi Email.`
         }, { status: 400 });
       }
     } catch (err: any) {
