@@ -76,6 +76,7 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
 🏘️ Desa Maleber, Kec. Karangtengah, Kab. Cianjur`;
 
     const secretKey = (process.env.WABLAS_SECRET_KEY || process.env.SECRET_KEY || '').trim();
+    const authHeaderValue = secretKey && !apiToken.includes('.') ? `${apiToken}.${secretKey}` : apiToken;
 
     // Direct fast dispatch to Wablas server node
     const domain = (process.env.WABLAS_API_URL || 'https://tegal.wablas.com').replace(/\/$/, '');
@@ -83,7 +84,7 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     const headersJson: Record<string, string> = {
-      'Authorization': apiToken,
+      'Authorization': authHeaderValue,
       'Content-Type': 'application/json',
     };
     if (secretKey) {
@@ -119,7 +120,7 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
       if (!res.ok || data.status === false) {
         try {
           const headersForm: Record<string, string> = {
-            'Authorization': apiToken,
+            'Authorization': authHeaderValue,
             'Content-Type': 'application/x-www-form-urlencoded',
           };
           if (secretKey) {
