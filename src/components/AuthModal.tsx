@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { UserRole, UserProfile, SavedAddress } from '@/types';
 import { INITIAL_USERS } from '@/lib/mockData';
 import { verifyPassword } from '@/lib/cryptoUtils';
-import { User, Lock, Phone, Mail, AlertCircle, ArrowRight, X, CheckCircle2, ShieldCheck, MessageSquare, UserCheck, CheckCircle, Map as MapIcon, Crosshair, KeyRound, Crop, Camera } from 'lucide-react';
+import { User, Lock, Phone, Mail, AlertCircle, ArrowRight, X, CheckCircle2, ShieldCheck, MessageSquare, UserCheck, CheckCircle, Map as MapIcon, MapPin, Crosshair, KeyRound, Crop, Camera } from 'lucide-react';
 import MapComponent from './MapComponent';
 import AvatarCropModal, { DEFAULT_BLANK_AVATAR } from './AvatarCropModal';
 
@@ -83,7 +83,7 @@ export default function AuthModal({
   const [favoriteAddress, setFavoriteAddress] = useState('Pos Ronda Dusun Pahing');
   const [bioNote, setBioNote] = useState('Depan pagar hijau rumah Pak RT');
   const [storeCoords, setStoreCoords] = useState({ lat: -6.8155, lng: 107.1865 });
-  const [showRegisterMap, setShowRegisterMap] = useState(true);
+  const [showFullscreenRegisterMap, setShowFullscreenRegisterMap] = useState(false);
 
   const handleRegisterMarkerDragEnd = async (newLat: number, newLng: number) => {
     setStoreCoords({ lat: newLat, lng: newLng });
@@ -576,101 +576,71 @@ export default function AuthModal({
                   />
                 </div>
 
-                {/* Store Location with Drop Pin Map */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center flex-wrap gap-1">
-                    <label className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
-                      📍 Alamat Lengkap &amp; Titik Lokasi Toko di Peta:
-                    </label>
+                {/* Store Location Card with Fullscreen Map Trigger */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                    <span>📍 Titik Lokasi Toko di Peta:</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">GPS Terhubung</span>
+                  </label>
+                  
+                  <div className="bg-zinc-50 dark:bg-zinc-800/90 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-700/80 space-y-2.5">
+                    <div className="flex items-start gap-2 text-xs text-zinc-800 dark:text-zinc-200">
+                      <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="font-medium text-xs leading-relaxed line-clamp-2">{homeAddress || 'Lokasi Desa Maleber'}</span>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => setShowRegisterMap(!showRegisterMap)}
-                      className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                        showRegisterMap
-                          ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-500'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200'
-                      }`}
+                      onClick={() => setShowFullscreenRegisterMap(true)}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-xl text-xs font-black shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <MapIcon className="w-3.5 h-3.5" />
-                      {showRegisterMap ? 'Tutup Peta' : '📌 Drop Pin Peta Toko'}
+                      <MapIcon className="w-4 h-4" />
+                      🗺️ Pilih / Geser Titik Toko Lewat Peta Fullscreen
                     </button>
                   </div>
-
-                  {/* Interactive Map for Store Location Drop Pin */}
-                  {showRegisterMap && (
-                    <div className="space-y-1.5 border border-emerald-500/50 rounded-2xl overflow-hidden p-1 bg-emerald-50 dark:bg-emerald-950/40">
-                      <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 px-2 block">
-                        📍 Klik / geser peta untuk menentukan titik lokasi toko Anda secara persis:
-                      </span>
-                      <div className="h-44 rounded-xl overflow-hidden shadow-inner">
-                        <MapComponent
-                          center={storeCoords}
-                          zoom={16}
-                          selectionMode="dest"
-                          destLocation={{ lat: storeCoords.lat, lng: storeCoords.lng, address: homeAddress }}
-                          onSelectDest={(lat, lng) => handleRegisterMarkerDragEnd(lat, lng)}
-                        />
-                      </div>
-                    </div>
-                  )}
 
                   <input
                     type="text"
                     value={homeAddress}
                     onChange={(e) => setHomeAddress(e.target.value)}
-                    placeholder="Alamat fisik toko (Dusun/RT/RW)..."
-                    className="w-full px-4 py-3 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl focus:outline-none focus:border-emerald-500 text-zinc-900 dark:text-white font-medium"
+                    placeholder="Detail alamat fisik toko (Dusun/RT/RW)..."
+                    className="w-full px-4 py-2.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:border-emerald-500 text-zinc-900 dark:text-white font-medium"
                     required
                   />
                 </div>
               </>
             ) : (
-              /* Buyer Form with Saved Addresses & Drop Pin */
+              /* Buyer Form with Saved Addresses & Fullscreen Map */
               <>
-                {/* Home Address / Buyer Location with Drop Pin Map */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center flex-wrap gap-1">
-                    <label className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
-                      🏠 Alamat Utama (Rumah / Tempat Tinggal):
-                    </label>
+                {/* Home Address / Buyer Location Card */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                    <span>🏠 Alamat Utama (Rumah / Tempat Tinggal):</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">GPS Terhubung</span>
+                  </label>
+                  
+                  <div className="bg-zinc-50 dark:bg-zinc-800/90 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-700/80 space-y-2.5">
+                    <div className="flex items-start gap-2 text-xs text-zinc-800 dark:text-zinc-200">
+                      <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="font-medium text-xs leading-relaxed line-clamp-2">{homeAddress || 'Lokasi Desa Maleber'}</span>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => setShowRegisterMap(!showRegisterMap)}
-                      className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                        showRegisterMap
-                          ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-500'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200'
-                      }`}
+                      onClick={() => setShowFullscreenRegisterMap(true)}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-xl text-xs font-black shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <MapIcon className="w-3.5 h-3.5" />
-                      {showRegisterMap ? 'Tutup Peta' : '📌 Drop Pin Peta'}
+                      <MapIcon className="w-4 h-4" />
+                      🗺️ Pilih / Geser Titik Rumah Lewat Peta Fullscreen
                     </button>
                   </div>
-
-                  {/* Interactive Map for Home Location Drop Pin */}
-                  {showRegisterMap && (
-                    <div className="space-y-1.5 border border-emerald-500/50 rounded-2xl overflow-hidden p-1 bg-emerald-50 dark:bg-emerald-950/40">
-                      <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 px-2 block">
-                        📍 Klik / geser peta untuk menentukan titik lokasi rumah Anda secara persis:
-                      </span>
-                      <div className="h-44 rounded-xl overflow-hidden shadow-inner">
-                        <MapComponent
-                          center={storeCoords}
-                          zoom={16}
-                          selectionMode="dest"
-                          destLocation={{ lat: storeCoords.lat, lng: storeCoords.lng, address: homeAddress }}
-                          onSelectDest={(lat, lng) => handleRegisterMarkerDragEnd(lat, lng)}
-                        />
-                      </div>
-                    </div>
-                  )}
 
                   <input
                     type="text"
                     value={homeAddress}
                     onChange={(e) => setHomeAddress(e.target.value)}
                     placeholder="Contoh: RT 02 / RW 01 Dusun Manis, Desa Maleber"
-                    className="w-full px-4 py-3 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl focus:outline-none focus:border-emerald-500 text-zinc-900 dark:text-white font-medium"
+                    className="w-full px-4 py-2.5 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:border-emerald-500 text-zinc-900 dark:text-white font-medium"
                   />
                 </div>
 
@@ -1227,6 +1197,64 @@ export default function AuthModal({
         </div>
 
       </div>
+
+      {/* FULLSCREEN INTERACTIVE MAP PICKER FOR REGISTRATION */}
+      {showFullscreenRegisterMap && (
+        <div className="fixed inset-0 z-[999999] bg-zinc-950 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          {/* Top Bar Header */}
+          <div className="bg-zinc-900/90 backdrop-blur-md px-4 py-3 border-b border-zinc-800 flex items-center justify-between z-10 shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-white">
+                  {registerRole === 'seller' ? '📍 Tentukan Titik Lokasi Toko' : '📍 Tentukan Titik Lokasi Rumah'}
+                </h3>
+                <p className="text-[11px] text-zinc-400">
+                  Geser pin atau klik pada peta untuk menetapkan titik lokasi akurat
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowFullscreenRegisterMap(false)}
+              className="p-2 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Fullscreen Map Area */}
+          <div className="flex-1 relative w-full h-full">
+            <MapComponent
+              center={storeCoords}
+              zoom={16}
+              selectionMode="dest"
+              destLocation={{ lat: storeCoords.lat, lng: storeCoords.lng, address: homeAddress }}
+              onSelectDest={(lat, lng) => handleRegisterMarkerDragEnd(lat, lng)}
+            />
+          </div>
+
+          {/* Bottom Floating Bar */}
+          <div className="fixed bottom-6 left-3 right-3 z-[1000000] max-w-md mx-auto pointer-events-none">
+            <div className="bg-zinc-900/95 backdrop-blur-md p-4 rounded-3xl border border-zinc-800 shadow-2xl space-y-3 pointer-events-auto">
+              <div className="flex items-start gap-2.5 px-1 text-zinc-200 text-xs font-medium">
+                <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span className="line-clamp-2 leading-relaxed">{homeAddress || 'Lokasi Terpilih di Peta'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFullscreenRegisterMap(false)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all w-full cursor-pointer"
+              >
+                <CheckCircle2 className="w-4.5 h-4.5" />
+                Gunakan Titik Lokasi Ini
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

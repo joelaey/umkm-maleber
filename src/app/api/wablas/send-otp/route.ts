@@ -42,18 +42,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiToken = process.env.WABLAS_API_TOKEN;
+    const apiToken = (
+      process.env.WABLAS_API_TOKEN ||
+      process.env.TRL_TOKEN ||
+      process.env.WABLAS_TOKEN ||
+      process.env.WABLAS_API_KEY ||
+      process.env.NEXT_PUBLIC_WABLAS_TOKEN ||
+      ''
+    ).trim();
 
     if (!apiToken) {
-      console.warn('WABLAS_API_TOKEN not configured. Falling back to Demo Mode.');
+      console.warn('Wablas token not configured in environment variables.');
       return NextResponse.json({
-        success: true,
-        demoMode: true,
-        otpCode: isProduction ? undefined : otpCode,
-        notice: isProduction 
-          ? 'Kode OTP telah dikirimkan ke WhatsApp Anda.' 
-          : `ℹ️ Mode Demo WhatsApp: WABLAS_API_TOKEN belum diset di server. Kode OTP 6-digit Anda: ${otpCode}`
-      });
+        success: false,
+        error: 'WABLAS_API_TOKEN / TRL_TOKEN belum diset di Vercel Environment Variables. Silakan gunakan opsi Verifikasi via Email atau hubungi admin.'
+      }, { status: 500 });
     }
 
     // Compose OTP message
@@ -73,12 +76,13 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
 🏘️ Desa Maleber, Kec. Karangtengah, Kab. Cianjur`;
 
     // Direct fast dispatch to Wablas server node
-    const domain = process.env.WABLAS_API_URL || 'https://tegal.wablas.com';
+    const domain = (process.env.WABLAS_API_URL || 'https://tegal.wablas.com').replace(/\/$/, '');
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     try {
-      const res = await fetch(`${domain}/api/send-message`, {
+      // 1. Try standard JSON post
+      let res = await fetch(`${domain}/api/send-message`, {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -91,9 +95,40 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
           token: apiToken
         }),
       });
+
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      // 2. Fallback to URL-encoded form data if needed
+      if (!res.ok || data.status === false) {
+        try {
+          const formRes = await fetch(`${domain}/api/send-message`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Authorization': apiToken,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              phone: normalizedPhone,
+              message: message,
+              token: apiToken
+            }),
+          });
+          const formData = await formRes.json();
+          if (formRes.ok && formData.status !== false) {
+            res = formRes;
+            data = formData;
+          }
+        } catch {}
+      }
+
       clearTimeout(timeoutId);
 
-      const data = await res.json();
       if (res.ok && data.status !== false) {
         return NextResponse.json({
           success: true,
@@ -101,7 +136,7 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
         });
       } else {
         const errorMsg = data.message || data.error || 'Server Wablas menolak request';
-        console.error(`Wablas API Notice: ${errorMsg}`);
+        console.error(`Wablas API Error: ${errorMsg}`);
         return NextResponse.json({
           success: false,
           error: `Pengiriman WhatsApp gagal (${errorMsg}). Pastikan perangkat WhatsApp di Wablas berstatus CONNECTED (Hijau), atau pilih opsi "Verifikasi via Email".`
