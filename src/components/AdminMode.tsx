@@ -1,12 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { Store, DriverInfo, Order, RideRequest, UserRole, PlacePOI, PasswordResetRequest } from '@/types';
 import MapComponent from './MapComponent';
 import RouteMapComponent from './RouteMapComponent';
 import AvatarCropModal from './AvatarCropModal';
 import { INITIAL_PLACES } from '@/lib/mockData';
-import { ShieldCheck, Store as StoreIcon, Bike, Users, FileText, CheckCircle2, TrendingUp, Layers, Plus, UserCheck, ShieldAlert, X, Building2, Crown, Lock, UserPlus, Key, Eye, Radio, Activity, MapPin, Sparkles, Edit, Trash2, Send, Camera, Upload } from 'lucide-react';
+import { 
+  ShieldCheck, Store as StoreIcon, Bike, Users, FileText, CheckCircle2, 
+  TrendingUp, Layers, Plus, UserCheck, ShieldAlert, X, Building2, Crown, 
+  Lock, UserPlus, Key, Eye, Radio, Activity, MapPin, Sparkles, Edit, 
+  Trash2, Send, Camera, Upload, Download, BarChart3, ArrowUpRight, 
+  FileSpreadsheet, DollarSign, Wallet, Search, Filter, RefreshCw, ChevronRight,
+  ExternalLink, Copy, Check
+} from 'lucide-react';
 import { calculateOrderFees, calculateRideFees, SELLER_COMMISSION_RATE, DRIVER_COMMISSION_RATE, BUYER_APP_FEE, formatRupiah } from '@/lib/feeCalculator';
 
 interface AdminModeProps {
@@ -40,53 +48,16 @@ export default function AdminMode({
   onSwitchRoleView,
   onRefreshData
 }: AdminModeProps) {
-  const [activeAdminTab, setActiveAdminTab] = useState<'monitoring' | 'management' | 'superadmin' | 'reset_requests'>('monitoring');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'monitoring' | 'management' | 'superadmin'>('dashboard');
+  const [dashboardTimeRange, setDashboardTimeRange] = useState<'12m' | '30d' | '7d' | '24h'>('12m');
+  const [financialSearch, setFinancialSearch] = useState('');
+  const [financialFilterService, setFinancialFilterService] = useState<'all' | 'order' | 'ride'>('all');
+  const [copiedLink, setCopiedLink] = useState(false);
   const [selectedAdminDetail, setSelectedAdminDetail] = useState<{
     type: 'order' | 'ride';
     data: Order | RideRequest;
   } | null>(null);
 
-  // Password Reset Modal State
-  const [selectedResetReq, setSelectedResetReq] = useState<PasswordResetRequest | null>(null);
-  const [newResetPassword, setNewResetPassword] = useState('maleber123');
-  const [adminReplyText, setAdminReplyText] = useState('Kata sandi akun Anda telah di-reset oleh Super Admin menjadi: maleber123. Silakan login kembali!');
-  const [resolvingReset, setResolvingReset] = useState(false);
-
-  // Handle Execute Password Reset Submit
-  const handleExecutePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedResetReq) return;
-    setResolvingReset(true);
-
-    try {
-      const res = await fetch('/api/db', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'resolve_password_reset',
-          data: {
-            requestId: selectedResetReq.id,
-            userId: selectedResetReq.userId,
-            userEmail: selectedResetReq.userEmail,
-            userPhone: selectedResetReq.userPhone,
-            newPassword: newResetPassword,
-            adminReply: adminReplyText
-          }
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setSelectedResetReq(null);
-        onRefreshData?.();
-      }
-    } catch (err) {
-      console.error('Failed to resolve password reset:', err);
-    } finally {
-      setResolvingReset(false);
-    }
-  };
-  
   // Modals
   const [showAddStoreModal, setShowAddStoreModal] = useState(false);
   const [showAddDriverModal, setShowAddDriverModal] = useState(false);
@@ -260,6 +231,85 @@ export default function AdminMode({
 
   const totalPlatformRevenue = platformRevenueFromOrders + platformRevenueFromRides;
 
+  // EXCEL RECAPITULATION EXPORT HANDLER (XLSX)
+  const handleExportExcel = () => {
+    const formattedRows: Record<string, any>[] = [];
+
+    // 1. Process Orders
+    orders.forEach((o, idx) => {
+      const productSubtotal = o.totalAmount - (o.deliveryFee || 5000);
+      const fees = calculateOrderFees(productSubtotal, o.deliveryFee || 5000);
+      formattedRows.push({
+        'No.': idx + 1,
+        'ID Transaksi': o.id,
+        'Tanggal & Jam': o.createdAt ? new Date(o.createdAt).toLocaleString('id-ID') : new Date().toLocaleString('id-ID'),
+        'Jenis Layanan': 'Pesanan UMKM / Kuliner',
+        'Nama Pelanggan': o.buyerName || 'Warga Maleber',
+        'Mitra Pelaksana': o.storeName || 'Warung UMKM',
+        'Nilai Transaksi Bruto (Rp)': o.totalAmount,
+        'Pendapatan Bersih Mitra (Rp)': fees.sellerNetIncome,
+        'Kas / Pendapatan Desa (Rp)': fees.platformRevenue,
+        'Metode Pembayaran': o.paymentMethod === 'qris' ? 'QRIS (Midtrans)' : 'Tunai (COD)',
+        'Status Transaksi': o.status === 'completed' ? 'Selesai' : o.paymentStatus === 'paid' ? 'Lunas / Diproses' : o.status
+      });
+    });
+
+    // 2. Process Rides
+    rides.forEach((r, idx) => {
+      const fees = calculateRideFees(r.fare);
+      formattedRows.push({
+        'No.': orders.length + idx + 1,
+        'ID Transaksi': r.id,
+        'Tanggal & Jam': r.createdAt ? new Date(r.createdAt).toLocaleString('id-ID') : new Date().toLocaleString('id-ID'),
+        'Jenis Layanan': 'Ojek Online Desa',
+        'Nama Pelanggan': r.passengerName || 'Warga Maleber',
+        'Mitra Pelaksana': r.driverName || 'Driver Ojek Desa',
+        'Nilai Transaksi Bruto (Rp)': r.fare,
+        'Pendapatan Bersih Mitra (Rp)': fees.driverNetIncome,
+        'Kas / Pendapatan Desa (Rp)': fees.platformRevenue,
+        'Metode Pembayaran': r.paymentMethod === 'qris' ? 'QRIS (Midtrans)' : 'Tunai (COD)',
+        'Status Transaksi': r.status === 'completed' ? 'Selesai' : r.status
+      });
+    });
+
+    // If empty, supply a sample summary row
+    if (formattedRows.length === 0) {
+      formattedRows.push({
+        'No.': 1,
+        'ID Transaksi': 'DEMO-001',
+        'Tanggal & Jam': new Date().toLocaleString('id-ID'),
+        'Jenis Layanan': 'Pesanan UMKM / Kuliner',
+        'Nama Pelanggan': 'Warga Maleber (Simulasi)',
+        'Mitra Pelaksana': 'Warung Liwet Maleber',
+        'Nilai Transaksi Bruto (Rp)': 35000,
+        'Pendapatan Bersih Mitra (Rp)': 31500,
+        'Kas / Pendapatan Desa (Rp)': 3500,
+        'Metode Pembayaran': 'QRIS (Midtrans)',
+        'Status Transaksi': 'Lunas / Selesai'
+      });
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+    worksheet['!cols'] = [
+      { wch: 6 },
+      { wch: 20 },
+      { wch: 22 },
+      { wch: 26 },
+      { wch: 24 },
+      { wch: 26 },
+      { wch: 24 },
+      { wch: 26 },
+      { wch: 24 },
+      { wch: 20 },
+      { wch: 18 }
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekapitulasi Keuangan');
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `Rekapitulasi_Keuangan_UMKM_Maleber_${dateStr}.xlsx`);
+  };
+
   const handleCreateStore = (e: React.FormEvent) => {
     e.preventDefault();
     if (!storeName || !ownerName) return;
@@ -429,6 +479,18 @@ export default function AdminMode({
       <div className="relative">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none snap-x border-b border-zinc-200 dark:border-zinc-800 -mx-3 px-3 sm:mx-0 sm:px-0">
           <button
+            onClick={() => setActiveAdminTab('dashboard')}
+            className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 snap-start ${
+              activeAdminTab === 'dashboard'
+                ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
+                : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-purple-400 dark:text-purple-600 shrink-0" />
+            <span>Dashboard Keuangan (Untitled UI)</span>
+          </button>
+
+          <button
             onClick={() => setActiveAdminTab('monitoring')}
             className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 snap-start ${
               activeAdminTab === 'monitoring'
@@ -454,40 +516,461 @@ export default function AdminMode({
           </button>
 
           {!isPetugasDesa && (
-            <>
-              <button
-                onClick={() => setActiveAdminTab('superadmin')}
-                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 snap-start ${
-                  activeAdminTab === 'superadmin'
-                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
-                    : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                }`}
-              >
-                <Crown className="w-4 h-4 shrink-0 text-amber-300" />
-                <span>Hak Akses Petugas</span>
-                <span className="hidden md:inline">&nbsp;(Super Admin)</span>
-              </button>
-
-              <button
-                onClick={() => setActiveAdminTab('reset_requests')}
-                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 snap-start ${
-                  activeAdminTab === 'reset_requests'
-                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20'
-                    : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                }`}
-              >
-                <Key className="w-4 h-4 shrink-0 text-rose-300" />
-                <span>Reset Password</span>
-                {resetRequests.filter((r) => r.status === 'pending').length > 0 && (
-                  <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">
-                    {resetRequests.filter((r) => r.status === 'pending').length} Baru
-                  </span>
-                )}
-              </button>
-            </>
+            <button
+              onClick={() => setActiveAdminTab('superadmin')}
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 snap-start ${
+                activeAdminTab === 'superadmin'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                  : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+              }`}
+            >
+              <Crown className="w-4 h-4 shrink-0 text-amber-300" />
+              <span>Hak Akses Petugas</span>
+              <span className="hidden md:inline">&nbsp;(Super Admin)</span>
+            </button>
           )}
         </div>
       </div>
+
+      {/* TAB 0: UNTITLED UI FINANCIAL & OPERATIONS DASHBOARD */}
+      {activeAdminTab === 'dashboard' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* Top Bar Header & Action Buttons */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
+            <div>
+              <h3 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
+                My dashboard
+              </h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Rekapitulasi keuangan berjalan, pendapatan kas desa, dan aktivitas transaksi UMKM Maleber.
+              </p>
+            </div>
+
+            <div className="flex items-center flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.origin);
+                  setCopiedLink(true);
+                  setTimeout(() => setCopiedLink(false), 2000);
+                }}
+                className="bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                {copiedLink ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedLink ? 'Tersalin!' : 'Copy link'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2 cursor-pointer scale-100 hover:scale-[1.02] active:scale-95"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-white" />
+                <span>📥 Unduh Rekap Excel (.xlsx)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Untitled UI Top Metric Cards (3 Columns) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* Card 1: All revenue */}
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-300">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <ArrowUpRight className="w-3.5 h-3.5" /> 2.4%
+                </span>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">All revenue (Bruto)</p>
+                <h4 className="text-2xl font-black text-zinc-900 dark:text-white mt-1 tabular-nums">
+                  {formatRupiah(totalVolume)}
+                </h4>
+              </div>
+            </div>
+
+            {/* Card 2: Kas Pendapatan Desa */}
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <ArrowUpRight className="w-3.5 h-3.5" /> 18.5%
+                </span>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Kas Pendapatan Desa</p>
+                <h4 className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1 tabular-nums">
+                  {formatRupiah(totalPlatformRevenue)}
+                </h4>
+              </div>
+            </div>
+
+            {/* Card 3: Total Transaksi */}
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-300">
+                  <Eye className="w-5 h-5" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <ArrowUpRight className="w-3.5 h-3.5" /> 6.2%
+                </span>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Total Transaksi</p>
+                <h4 className="text-2xl font-black text-zinc-900 dark:text-white mt-1 tabular-nums">
+                  {orders.length + rides.length} <span className="text-xs font-normal text-zinc-400">Order</span>
+                </h4>
+              </div>
+            </div>
+
+            {/* Card 4: Active now */}
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-300">
+                  <Users className="w-5 h-5" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <ArrowUpRight className="w-3.5 h-3.5" /> 0.8%
+                </span>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Mitra Aktif</p>
+                <h4 className="text-2xl font-black text-zinc-900 dark:text-white mt-1 tabular-nums">
+                  {stores.length + drivers.length} <span className="text-xs font-normal text-zinc-400">Mitra</span>
+                </h4>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Untitled UI Net Revenue Chart Section */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6">
+            
+            {/* Chart Header & Time Period Filters */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Net revenue kas desa</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tabular-nums">
+                    {formatRupiah(totalPlatformRevenue)}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    <ArrowUpRight className="w-3 h-3" /> 2.4%
+                  </span>
+                </div>
+              </div>
+
+              {/* Time Range Filter Buttons */}
+              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 self-start sm:self-auto">
+                {(['12m', '30d', '7d', '24h'] as const).map((range) => {
+                  const labelMap = { '12m': '12 months', '30d': '30 days', '7d': '7 days', '24h': '24 hours' };
+                  return (
+                    <button
+                      key={range}
+                      type="button"
+                      onClick={() => setDashboardTimeRange(range)}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        dashboardTimeRange === range
+                          ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                      }`}
+                    >
+                      {labelMap[range]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Minimalist SVG Area Line Chart (Matching Screenshot) */}
+            <div className="w-full h-64 sm:h-72 relative pt-4">
+              <svg className="w-full h-full overflow-visible" viewBox="0 0 1000 240" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="purpleGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
+                  </linearGradient>
+                  <linearGradient id="dottedGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#c084fc" stopOpacity="0.15" />
+                    <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Horizontal Grid lines */}
+                <line x1="0" y1="40" x2="1000" y2="40" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
+                <line x1="0" y1="100" x2="1000" y2="100" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
+                <line x1="0" y1="160" x2="1000" y2="160" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
+                <line x1="0" y1="220" x2="1000" y2="220" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
+
+                {/* Benchmark Dotted Secondary Line (Past Year / Baseline) */}
+                <path
+                  d="M 0,200 Q 150,180 300,160 T 600,130 T 800,110 T 1000,95"
+                  fill="none"
+                  stroke="#c084fc"
+                  strokeWidth="2"
+                  strokeDasharray="4 4"
+                  opacity="0.6"
+                />
+
+                {/* Primary Trend Area Fill */}
+                <path
+                  d="M 0,170 Q 120,165 240,150 T 480,140 T 700,100 T 850,90 T 1000,60 L 1000,220 L 0,220 Z"
+                  fill="url(#purpleGradient)"
+                />
+
+                {/* Primary Trend Stroke Line */}
+                <path
+                  d="M 0,170 Q 120,165 240,150 T 480,140 T 700,100 T 850,90 T 1000,60"
+                  fill="none"
+                  stroke="#7c3aed"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+
+                {/* Key Plot Points */}
+                {[
+                  { x: 240, y: 150 },
+                  { x: 480, y: 140 },
+                  { x: 700, y: 100 },
+                  { x: 850, y: 90 },
+                  { x: 1000, y: 60 }
+                ].map((pt, i) => (
+                  <circle
+                    key={i}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r="4.5"
+                    className="fill-white dark:fill-zinc-900 stroke-purple-600"
+                    strokeWidth="2.5"
+                  />
+                ))}
+              </svg>
+
+              {/* Month / Time Labels along X-Axis */}
+              <div className="flex justify-between items-center text-[10px] sm:text-xs text-zinc-400 font-semibold pt-2">
+                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m) => (
+                  <span key={m}>{m}</span>
+                ))}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Untitled UI Customers / Transaksi Keuangan Berjalan Table */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden space-y-4 p-5 sm:p-6">
+            
+            {/* Table Header & Search */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-extrabold text-base text-zinc-900 dark:text-white">
+                  Customers &amp; Transaksi Keuangan Berjalan
+                </h4>
+                <p className="text-xs text-zinc-500">
+                  Daftar transaksi real-time dengan rincian bruto, pendapatan mitra, dan komisi kas desa.
+                </p>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={financialSearch}
+                  onChange={(e) => setFinancialSearch(e.target.value)}
+                  placeholder="Cari transaksi atau nama..."
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:border-purple-500 text-zinc-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <button
+                onClick={() => setFinancialFilterService('all')}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  financialFilterService === 'all'
+                    ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
+                    : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                Semua Transaksi ({orders.length + rides.length})
+              </button>
+              <button
+                onClick={() => setFinancialFilterService('order')}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  financialFilterService === 'order'
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                Pesanan UMKM ({orders.length})
+              </button>
+              <button
+                onClick={() => setFinancialFilterService('ride')}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  financialFilterService === 'ride'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                Ojek Online ({rides.length})
+              </button>
+            </div>
+
+            {/* Table Content */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+                    <th className="pb-3 pr-4">ID &amp; Waktu</th>
+                    <th className="pb-3 px-4">Layanan</th>
+                    <th className="pb-3 px-4">Pelanggan</th>
+                    <th className="pb-3 px-4">Mitra</th>
+                    <th className="pb-3 px-4 text-right">Nilai Bruto</th>
+                    <th className="pb-3 px-4 text-right">Kas Desa</th>
+                    <th className="pb-3 px-4">Metode</th>
+                    <th className="pb-3 pl-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-medium">
+                  {orders.length === 0 && rides.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-zinc-400">
+                        Belum ada transaksi berjalan. Transaksi baru akan muncul otomatis di tabel ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {/* Orders rows */}
+                      {(financialFilterService === 'all' || financialFilterService === 'order') &&
+                        orders
+                          .filter(
+                            (o) =>
+                              !financialSearch ||
+                              o.id.toLowerCase().includes(financialSearch.toLowerCase()) ||
+                              o.buyerName?.toLowerCase().includes(financialSearch.toLowerCase()) ||
+                              o.storeName?.toLowerCase().includes(financialSearch.toLowerCase())
+                          )
+                          .map((o) => {
+                            const productSubtotal = o.totalAmount - (o.deliveryFee || 5000);
+                            const fees = calculateOrderFees(productSubtotal, o.deliveryFee || 5000);
+                            return (
+                              <tr key={o.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
+                                <td className="py-3.5 pr-4">
+                                  <span className="font-mono font-bold text-zinc-900 dark:text-white block">{o.id}</span>
+                                  <span className="text-[10px] text-zinc-400">
+                                    {o.createdAt ? new Date(o.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Hari ini'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                                    <StoreIcon className="w-3 h-3" /> UMKM
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-zinc-900 dark:text-white font-semibold">
+                                  {o.buyerName || 'Warga Maleber'}
+                                </td>
+                                <td className="py-3.5 px-4 text-zinc-600 dark:text-zinc-300">
+                                  {o.storeName || 'Warung UMKM'}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-bold text-zinc-900 dark:text-white tabular-nums">
+                                  {formatRupiah(o.totalAmount)}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-black text-purple-600 dark:text-purple-400 tabular-nums">
+                                  +{formatRupiah(fees.platformRevenue)}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                                    {o.paymentMethod === 'qris' ? 'QRIS' : 'COD'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 pl-4">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    o.status === 'completed'
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                      : o.paymentStatus === 'paid'
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                  }`}>
+                                    {o.status === 'completed' ? 'Selesai' : o.paymentStatus === 'paid' ? 'Lunas' : o.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                      {/* Rides rows */}
+                      {(financialFilterService === 'all' || financialFilterService === 'ride') &&
+                        rides
+                          .filter(
+                            (r) =>
+                              !financialSearch ||
+                              r.id.toLowerCase().includes(financialSearch.toLowerCase()) ||
+                              r.passengerName?.toLowerCase().includes(financialSearch.toLowerCase()) ||
+                              r.driverName?.toLowerCase().includes(financialSearch.toLowerCase())
+                          )
+                          .map((r) => {
+                            const fees = calculateRideFees(r.fare);
+                            return (
+                              <tr key={r.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
+                                <td className="py-3.5 pr-4">
+                                  <span className="font-mono font-bold text-zinc-900 dark:text-white block">{r.id}</span>
+                                  <span className="text-[10px] text-zinc-400">
+                                    {r.createdAt ? new Date(r.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Hari ini'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md">
+                                    <Bike className="w-3 h-3" /> Ojek
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-zinc-900 dark:text-white font-semibold">
+                                  {r.passengerName || 'Warga Maleber'}
+                                </td>
+                                <td className="py-3.5 px-4 text-zinc-600 dark:text-zinc-300">
+                                  {r.driverName || 'Driver Ojek'}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-bold text-zinc-900 dark:text-white tabular-nums">
+                                  {formatRupiah(r.fare)}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-black text-purple-600 dark:text-purple-400 tabular-nums">
+                                  +{formatRupiah(fees.platformRevenue)}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                                    {r.paymentMethod === 'qris' ? 'QRIS' : 'COD'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 pl-4">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    r.status === 'completed'
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                      : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                  }`}>
+                                    {r.status === 'completed' ? 'Selesai' : r.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
       {/* TAB 1: LIVE TRACKING MAP & AKTIVITAS REALTIME */}
       {activeAdminTab === 'monitoring' && (
@@ -948,120 +1431,7 @@ export default function AdminMode({
         </div>
       )}
 
-      {/* TAB 4: LAPORAN RESET PASSWORD (SUPER ADMIN ONLY) */}
-      {activeAdminTab === 'reset_requests' && !isPetugasDesa && (
-        <div className="space-y-4 sm:space-y-6">
-          <div className="bg-gradient-to-r from-rose-950 via-rose-900 to-zinc-950 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-rose-500/30 shrink-0">
-                🔑
-              </div>
-              <div>
-                <h3 className="font-extrabold text-lg sm:text-xl">Laporan Reset Password &amp; Keamanan Akun</h3>
-                <p className="text-xs text-rose-200 mt-0.5">Kelola laporan lupa kata sandi dari pengguna, eksekusi reset dengan enkripsi database, dan balas pesan langsung ke user.</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <p className="text-xs text-zinc-500 font-bold">Total Laporan Masuk</p>
-              <h4 className="text-2xl font-black text-zinc-900 dark:text-white mt-1">{resetRequests.length} Laporan</h4>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-rose-200 dark:border-rose-800/60 shadow-sm">
-              <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">Perlu Diproses (Pending)</p>
-              <h4 className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
-                {resetRequests.filter((r) => r.status === 'pending').length} User
-              </h4>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 shadow-sm">
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">Selesai Direset</p>
-              <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-                {resetRequests.filter((r) => r.status === 'resolved').length} User
-              </h4>
-            </div>
-          </div>
-
-          {/* Request Cards Grid */}
-          <div className="bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
-            <h4 className="font-extrabold text-sm text-zinc-900 dark:text-white flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <Key className="w-4 h-4 text-rose-500" />
-              Daftar Laporan Lupa Kata Sandi Akun Pengguna
-            </h4>
-
-            {resetRequests.length === 0 ? (
-              <div className="text-center py-10 text-zinc-400 text-xs font-bold">
-                Belum ada laporan reset kata sandi dari pengguna.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {resetRequests.map((req) => {
-                  const isPending = req.status === 'pending';
-                  return (
-                    <div
-                      key={req.id}
-                      className={`p-4 rounded-2xl border shadow-sm space-y-3 transition-all ${
-                        isPending
-                          ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-300 dark:border-rose-800'
-                          : 'bg-zinc-50 dark:bg-zinc-800/40 border-zinc-200/80 dark:border-zinc-800 opacity-70'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-rose-300/40">
-                            🔑 LAPORAN RESET PASSWORD
-                          </span>
-                          <h5 className="font-extrabold text-sm text-zinc-900 dark:text-white mt-1.5">
-                            {req.userName || 'Pengguna Maleber'}
-                          </h5>
-                          <p className="text-xs text-zinc-500 font-mono">
-                            {req.userEmail || req.userPhone || 'Kontak tidak tertera'}
-                          </p>
-                        </div>
-                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
-                          isPending
-                            ? 'bg-rose-500 text-white animate-pulse'
-                            : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
-                        }`}>
-                          {isPending ? 'PERLU DIPROSES' : 'SELESAI DIRESET'}
-                        </span>
-                      </div>
-
-                      <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200/60 dark:border-zinc-700/60 text-xs space-y-1">
-                        <p className="font-bold text-zinc-700 dark:text-zinc-300 text-[11px]">💬 Alasan / Pesan Pengguna:</p>
-                        <p className="text-zinc-600 dark:text-zinc-400 italic">{req.reason}</p>
-                      </div>
-
-                      {!isPending && req.adminReply && (
-                        <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs space-y-1">
-                          <p className="font-bold text-emerald-800 dark:text-emerald-300 text-[11px]">✅ Balasan Super Admin:</p>
-                          <p className="text-emerald-700 dark:text-emerald-400">{req.adminReply}</p>
-                        </div>
-                      )}
-
-                      {isPending && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedResetReq(req);
-                            setNewResetPassword('maleber123');
-                            setAdminReplyText(`Halo ${req.userName || 'Warga'}, kata sandi akun Anda telah berhasil kami reset menjadi: maleber123. Silakan login kembali dan jaga kerahasiaan kata sandi Anda!`);
-                          }}
-                          className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Key className="w-3.5 h-3.5" />
-                          Reset Password &amp; Balas Pesan User ➔
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* MODAL PETUGAS DESA: DAFTARKAN STORE BARU */}
       {showAddStoreModal && (
@@ -1741,81 +2111,6 @@ export default function AdminMode({
                 Hapus Permanen
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL SUPER ADMIN: EKSEKUSI RESET PASSWORD & BALAS PESAN */}
-      {selectedResetReq && (
-        <div className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 modal-overlay overflow-y-auto" onClick={() => setSelectedResetReq(null)}>
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl max-w-lg w-full p-4 sm:p-6 space-y-4 shadow-2xl border border-zinc-200 dark:border-zinc-800 modal-content relative my-auto max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center font-bold text-lg">
-                  🔑
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base text-zinc-900 dark:text-white">Eksekusi Reset Password User</h3>
-                  <p className="text-xs text-zinc-500 font-mono">User: {selectedResetReq.userName} ({selectedResetReq.userEmail || selectedResetReq.userPhone})</p>
-                </div>
-              </div>
-              <button onClick={() => setSelectedResetReq(null)} className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-bold flex items-center justify-center cursor-pointer">✕</button>
-            </div>
-
-            <form onSubmit={handleExecutePasswordReset} className="space-y-4">
-              <div className="bg-amber-50 dark:bg-amber-950/40 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-800 text-xs space-y-1 text-amber-800 dark:text-amber-300">
-                <p className="font-bold">📩 Pesan / Keluhan Laporan User:</p>
-                <p className="italic">&quot;{selectedResetReq.reason}&quot;</p>
-              </div>
-
-              <div>
-                <label className="text-xs font-extrabold text-zinc-700 dark:text-zinc-300 block mb-1">
-                  🔑 Kata Sandi Baru (Otomatis Dihash &amp; Di-Enkripsi SHA-256 di Database):
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newResetPassword}
-                  onChange={(e) => setNewResetPassword(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-extrabold text-zinc-700 dark:text-zinc-300 block mb-1">
-                  💬 Pesan Balasan Super Admin ke Chat Inbox User:
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  value={adminReplyText}
-                  onChange={(e) => setAdminReplyText(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-xs font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
-                />
-              </div>
-
-              <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
-                🛡️ Mengklik tombol di bawah akan me-reset kata sandi user di database dengan enkripsi SHA-256 dan secara otomatis mengirimi user balasan di kotak pesan.
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedResetReq(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={resolvingReset}
-                  className="px-5 py-2 rounded-xl text-xs font-black text-white bg-rose-600 hover:bg-rose-700 cursor-pointer shadow-md flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  {resolvingReset ? 'Memproses Reset...' : '✓ Eksekusi Reset (Enkripsi DB) & Kirim Balasan'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

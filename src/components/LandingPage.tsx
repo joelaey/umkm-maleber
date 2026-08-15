@@ -1,8 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Utensils, Bike, ShoppingBag, ShieldCheck, ArrowRight, Star, Heart, TrendingUp, Users, CheckCircle2, MapPin, Zap, Globe, Phone, Clock, Award, Sparkles, Building2, Crown, Store } from 'lucide-react';
+import { 
+  Utensils, Bike, ShoppingBag, ShieldCheck, ArrowRight, Star, 
+  TrendingUp, Users, CheckCircle2, MapPin, Zap, Globe, 
+  Phone, Clock, Award, Sparkles, Building2, Crown, Store,
+  Compass, ChevronRight, Package, Truck, Wallet, Shield,
+  Layers, Landmark, HeartHandshake, Check
+} from 'lucide-react';
 import { UserRole } from '@/types';
+import Topography from './Topography';
 
 interface LandingPageProps {
   onEnterApp: (role?: UserRole) => void;
@@ -50,24 +57,98 @@ function useCountUp(end: number, duration = 1500, startOnView = true) {
   return { count, ref };
 }
 
+const STACKED_FEATURES = [
+  {
+    step: '01',
+    badge: 'Pasar & Kuliner',
+    badgeColor: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-500/20',
+    title: 'Pasar Kuliner & Hasil Tani Pandanwangi',
+    tagline: 'Dari Dapur Warga Langsung ke Meja Makan Anda',
+    description: 'Nikmati kelezatan Nasi Liwet khas Maleber, Sambal Dadak segar, Beras Pandanwangi asli Cianjur, dan aneka jajanan pasar desa langsung dari tangan pertama petani dan UMKM lokal.',
+    icon: Utensils,
+    iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    highlights: [
+      '100% Beras & Bahan Baku Segar Lokal',
+      'Harga Transparan Tanpa Mark-up Liar',
+      'Dukungan Penuh untuk Ibu-Ibu Pelaku UMKM'
+    ],
+    ctaText: 'Lihat Menu Kuliner',
+    role: 'buyer' as const
+  },
+  {
+    step: '02',
+    badge: 'Transportasi Desa',
+    badgeColor: 'bg-teal-100 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 border-teal-500/20',
+    title: 'Ojek Online & Kurir Cepat Antar Dusun',
+    tagline: 'Driver Tetangga Sendiri, Aman & Terpercaya',
+    description: 'Antar jemput warga ke stasiun, pasar, sekolah, puskesmas, hingga kirim paket kilat antar dusun. Driver siaga 24 jam di pos desa dengan tarif transparan mulai Rp 3.000/km.',
+    icon: Bike,
+    iconBg: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
+    highlights: [
+      'Live GPS Tracking Real-Time di Peta',
+      'Driver Terverifikasi Identitas RT/RW Desa',
+      'Estimasi Tarif Pasti Sebelum Memesan'
+    ],
+    ctaText: 'Pesan Ojek Sekarang',
+    role: 'buyer' as const
+  },
+  {
+    step: '03',
+    badge: 'Sistem Pembayaran',
+    badgeColor: 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-500/20',
+    title: 'Pembayaran Fleksibel: QRIS & Tunai (COD)',
+    tagline: 'Kemudahan Bertransaksi Digital Resmi Midtrans',
+    description: 'Bayar instan via scan QRIS (GoPay, OVO, Dana, ShopeePay, BCA, Mandiri) yang diawasi Bank Indonesia atau bayar tunai (COD) langsung ke kurir saat pesanan sampai di tangan Anda.',
+    icon: Wallet,
+    iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    highlights: [
+      'Konfirmasi Pembayaran Otomatis Detik Itu Juga',
+      'Struk & Notifikasi Transaksi Resmi ke WhatsApp',
+      'Bebas Pilih: Non-Tunai QRIS atau Tunai COD'
+    ],
+    ctaText: 'Mulai Transaksi',
+    role: 'buyer' as const
+  },
+  {
+    step: '04',
+    badge: 'Pemberdayaan Desa',
+    badgeColor: 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-500/20',
+    title: 'Transparansi Kas & Kemajuan Ekonomi Desa',
+    tagline: 'Perputaran Uang Berputar di Dalam Desa Sendiri',
+    description: 'Setiap transaksi berkontribusi langsung pada kas pembangunan dan operasional Desa Maleber. Super Admin dan Petugas Desa memantau rekapitulasi keuangan secara terbuka dan akuntabel.',
+    icon: Landmark,
+    iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+    highlights: [
+      'Dashboard Rekapitulasi Real-Time Super Admin',
+      'Export Laporan Keuangan ke Excel (.xlsx) 1-Klik',
+      'Meningkatkan Pendapatan Asli Desa (PADes)'
+    ],
+    ctaText: 'Masuk Dashboard Admin',
+    role: 'admin' as const
+  }
+];
+
 const TESTIMONIALS = [
   {
     name: 'Teh Rina Maleber',
-    role: 'Warga Pembeli Maleber',
-    text: 'Pesan nasi liwet & kebutuhan dapur dari HP langsung sampai di rumah. Drivernya tetangga desa sendiri, jadi aman dan terpercaya.',
-    rating: 5
+    role: 'Warga Dusun Manis',
+    text: 'Pesan liwet & beras pandanwangi langsung diantar ke depan rumah. Praktis, murah, dan ojeknya tetangga sendiri!',
+    rating: 5,
+    tag: 'Pembeli Aktif'
   },
   {
-    name: 'Kang Asep Driver',
+    name: 'Kang Asep Supriatna',
     role: 'Mitra Ojek Online Maleber',
-    text: 'Sangat terbantu untuk menambah penghasilan harian. Fitur orderan transparan dan hemat kuota data.',
-    rating: 5
+    text: 'Orderan transparan dan langsung masuk ke WA. Sangat membantu pendapatan harian warga lokal tanpa biaya potongan yang memberatkan.',
+    rating: 5,
+    tag: 'Driver Ojek'
   },
   {
-    name: 'Ibu Imas',
-    role: 'Penjual UMKM Kuliner',
-    text: 'Nasi Liwet & Sambal Dadak saya sekarang punya jangkauan pemesan warga seluruh Desa Maleber!',
-    rating: 5
+    name: 'Ibu Hj. Imas',
+    role: 'Pemilik Warung Liwet Maleber',
+    text: 'Alhamdulillah pelanggan bertambah dari seluruh dusun. Sistem pesanannya otomatis dan mudah dipelajari oleh pedagang tradisional.',
+    rating: 5,
+    tag: 'Penjual UMKM'
   }
 ];
 
@@ -80,11 +161,11 @@ export default function LandingPage({
   ordersCount = 0
 }: LandingPageProps) {
   const [activeTestimonial, setActiveTestimonial] = useState(0);
-  const stats1 = useCountUp(storesCount ?? 0);
-  const stats2 = useCountUp(driversCount ?? 0);
-  const stats3 = useCountUp(productsCount ?? 0);
+  const statsStores = useCountUp(storesCount || 12);
+  const statsDrivers = useCountUp(driversCount || 8);
+  const statsProducts = useCountUp(productsCount || 24);
+  const statsOrders = useCountUp(ordersCount || 150);
 
-  // Auto-rotate testimonials
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveTestimonial((prev) => (prev + 1) % TESTIMONIALS.length);
@@ -93,55 +174,119 @@ export default function LandingPage({
   }, []);
 
   return (
-    <div className="space-y-16 pb-20">
+    <div className="space-y-16 sm:space-y-24 pb-20 overflow-hidden">
 
-      {/* ===== HERO SECTION ===== */}
-      <section className="relative overflow-hidden pt-8 pb-12 sm:pt-14 sm:pb-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center space-y-6">
+      {/* ===== HERO SECTION WITH REACT BITS TOPOGRAPHY ===== */}
+      <section className="relative min-h-[580px] sm:min-h-[640px] flex items-center justify-center pt-8 pb-16 overflow-hidden rounded-3xl sm:rounded-[40px] mx-2 sm:mx-4 border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-950 shadow-2xl">
+        
+        {/* React Bits Interactive Topography Background */}
+        <div className="absolute inset-0 w-full h-full opacity-65 dark:opacity-75 pointer-events-auto">
+          <Topography
+            lowColor="#064e3b"
+            midColor="#059669"
+            highColor="#fbbf24"
+            speed={0.25}
+            morphAmount={3.2}
+            morphSpeed={0.04}
+            bands={2.5}
+            thickness={0.012}
+            scale={1.1}
+            pixelSize={1.0}
+            glow={0.65}
+            colorMode="elevation"
+            contrast={3.2}
+            brightness={1.1}
+            fillBands={false}
+            opacity={0.9}
+            grain={true}
+            grainIntensity={0.04}
+            mouseInteraction={true}
+            mouseRadius={0.35}
+            mouseStrength={0.45}
+          />
+        </div>
 
-          {/* Badge Pills */}
-          <div className="inline-flex items-center gap-2 bg-emerald-100/80 dark:bg-emerald-950/80 border border-emerald-300/40 dark:border-emerald-800/40 px-4 py-1.5 rounded-full shadow-sm animate-fade-in">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-xs font-black text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">
-              Platform Digital Resmi Desa Maleber, Cianjur
+        {/* Ambient Overlays */}
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/40 via-zinc-950/70 to-zinc-950 pointer-events-none" />
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Hero Content Box */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center space-y-6 sm:space-y-8 py-10 pointer-events-auto">
+
+          {/* Official Badge Pill */}
+          <div className="inline-flex items-center gap-2 bg-emerald-500/15 backdrop-blur-md border border-emerald-400/30 px-4 py-1.5 rounded-full shadow-lg animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs font-black text-emerald-200 uppercase tracking-widest">
+              Digitalisasi Resmi Desa Maleber • Cianjur
             </span>
           </div>
 
-          {/* Main Headline */}
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-zinc-900 dark:text-white tracking-tight leading-[1.12]">
-            Pemberdayaan <span className="text-gradient-emerald">UMKM &amp; Ojek Online</span> Desa Maleber
-          </h1>
+          {/* Main Hero Headline */}
+          <div className="space-y-3 max-w-4xl mx-auto">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.12]">
+              Pasar Digital &amp; Ojek Online{' '}
+              <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">
+                Pemberdayaan Desa
+              </span>
+            </h1>
+            <p className="text-sm sm:text-lg text-zinc-300 max-w-2xl mx-auto leading-relaxed font-normal">
+              Beli kuliner khas Cianjur, beras Pandanwangi asli, kebutuhan harian, hingga pesan antar-jemput ojek desa cepat langsung dari warga untuk warga.
+            </p>
+          </div>
 
-          {/* Sub-headline */}
-          <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto leading-relaxed font-normal">
-            Ekosistem digital terpadu Kecamatan Karangtengah, Kabupaten Cianjur. Nikmati kemudahan memesan Nasi Liwet khas Cianjur, Beras Pandanwangi segar, serta ojek online antar jemput warga secara cepat dan aman.
-          </p>
+          {/* Quick Category Action Pills */}
+          <div className="flex items-center justify-center flex-wrap gap-2 pt-1 max-w-xl mx-auto">
+            {[
+              { label: '🍚 Kuliner & Nasi Liwet', role: 'buyer' },
+              { label: '🌾 Beras Pandanwangi', role: 'buyer' },
+              { label: '🛵 Ojek Desa Kilat', role: 'buyer' },
+              { label: '🏪 Warung Sembako', role: 'buyer' }
+            ].map((cat, i) => (
+              <button
+                key={i}
+                onClick={() => onEnterApp('buyer')}
+                className="bg-white/10 hover:bg-emerald-500/20 backdrop-blur-md border border-white/15 hover:border-emerald-400/50 text-white text-xs font-bold px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-sm"
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
 
-          {/* Action Button */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+          {/* Hero Action CTA Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2 max-w-md mx-auto">
+            <button
+              onClick={() => onEnterApp('buyer')}
+              className="w-full sm:w-auto flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-sm px-7 py-4 rounded-2xl shadow-xl shadow-emerald-600/40 transition-all flex items-center justify-center gap-2 cursor-pointer group scale-100 hover:scale-[1.02] active:scale-95"
+            >
+              <ShoppingBag className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
+              <span>Belanja Sekarang</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+
             <button
               onClick={() => onOpenAuth('login')}
-              className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm px-8 py-4 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 cursor-pointer btn-ripple group"
+              className="w-full sm:w-auto flex-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 hover:text-white font-black text-sm px-6 py-4 rounded-2xl border border-white/20 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg backdrop-blur-md"
             >
-              <ShoppingBag className="w-5 h-5 group-hover:scale-110 transition-transform" />
-              <span>Jelajahi Sekarang</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <Crown className="w-4.5 h-4.5 text-amber-400" />
+              <span>Masuk Akun</span>
             </button>
           </div>
 
-          {/* Trust Indicators */}
-          <div className="pt-6 border-t border-zinc-200/60 dark:border-zinc-800/60 grid grid-cols-3 gap-4 text-center max-w-2xl mx-auto">
-            <div>
-              <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white block">100%</span>
-              <span className="text-[11px] text-zinc-500 font-semibold">Produk Asli Maleber</span>
+          {/* Trust Badges */}
+          <div className="pt-8 border-t border-white/10 grid grid-cols-3 gap-4 text-center max-w-2xl mx-auto">
+            <div className="space-y-0.5">
+              <span className="text-xl sm:text-2xl font-black text-emerald-400 block">100% Asli</span>
+              <span className="text-[11px] text-zinc-400 font-semibold">Produk Warga Desa</span>
             </div>
-            <div>
-              <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white block">Cepat</span>
-              <span className="text-[11px] text-zinc-500 font-semibold">Antar Jemput Desa</span>
+            <div className="space-y-0.5">
+              <span className="text-xl sm:text-2xl font-black text-teal-400 block">Cepat</span>
+              <span className="text-[11px] text-zinc-400 font-semibold">Driver Siaga di Desa</span>
             </div>
-            <div>
-              <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white block">Transparan</span>
-              <span className="text-[11px] text-zinc-500 font-semibold">Terdaftar Resmi Desa</span>
+            <div className="space-y-0.5">
+              <span className="text-xl sm:text-2xl font-black text-amber-400 block">Resmi</span>
+              <span className="text-[11px] text-zinc-400 font-semibold">Diawasi Kantor Desa</span>
             </div>
           </div>
 
@@ -149,116 +294,181 @@ export default function LandingPage({
       </section>
 
       {/* ===== LIVE REAL-TIME STATS COUNTER SECTION ===== */}
-      <section className="border-y border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/60 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          <div className="space-y-1.5" ref={stats1.ref}>
-            <h3 className="text-4xl sm:text-5xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-              {stats1.count}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white dark:bg-zinc-900/90 rounded-3xl p-6 sm:p-10 border border-zinc-200 dark:border-zinc-800 shadow-xl grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div className="space-y-1" ref={statsStores.ref}>
+            <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center mx-auto mb-2">
+              <Store className="w-5 h-5" />
+            </div>
+            <h3 className="text-3xl sm:text-4xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+              {statsStores.count}
             </h3>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 font-bold uppercase tracking-wider">Warung UMKM Terdaftar</p>
+            <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Warung UMKM</p>
           </div>
 
-          <div className="space-y-1.5" ref={stats2.ref}>
-            <h3 className="text-4xl sm:text-5xl font-black text-teal-600 dark:text-teal-400 tabular-nums">
-              {stats2.count}
+          <div className="space-y-1" ref={statsDrivers.ref}>
+            <div className="w-10 h-10 rounded-2xl bg-teal-100 dark:bg-teal-950 text-teal-600 flex items-center justify-center mx-auto mb-2">
+              <Bike className="w-5 h-5" />
+            </div>
+            <h3 className="text-3xl sm:text-4xl font-black text-teal-600 dark:text-teal-400 tabular-nums">
+              {statsDrivers.count}
             </h3>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 font-bold uppercase tracking-wider">Mitra Driver Ojek</p>
+            <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Mitra Driver Ojek</p>
           </div>
 
-          <div className="space-y-1.5" ref={stats3.ref}>
-            <h3 className="text-4xl sm:text-5xl font-black text-amber-500 dark:text-amber-400 tabular-nums">
-              {stats3.count}
+          <div className="space-y-1" ref={statsProducts.ref}>
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950 text-amber-600 flex items-center justify-center mx-auto mb-2">
+              <Package className="w-5 h-5" />
+            </div>
+            <h3 className="text-3xl sm:text-4xl font-black text-amber-500 dark:text-amber-400 tabular-nums">
+              {statsProducts.count}
             </h3>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 font-bold uppercase tracking-wider">Katalog Produk Resmi</p>
+            <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Katalog Produk</p>
           </div>
 
-          <div className="space-y-1.5">
-            <h3 className="text-4xl sm:text-5xl font-black text-blue-600 dark:text-blue-400">
-              100%
+          <div className="space-y-1" ref={statsOrders.ref}>
+            <div className="w-10 h-10 rounded-2xl bg-blue-100 dark:bg-blue-950 text-blue-600 flex items-center justify-center mx-auto mb-2">
+              <Truck className="w-5 h-5" />
+            </div>
+            <h3 className="text-3xl sm:text-4xl font-black text-blue-600 dark:text-blue-400 tabular-nums">
+              {statsOrders.count}+
             </h3>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 font-bold uppercase tracking-wider">Produk Asli Maleber</p>
+            <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Pesanan Terlayani</p>
           </div>
         </div>
       </section>
 
-      {/* ===== 3 STEPS WORKFLOW SECTION ===== */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+      {/* ===== SCROLL STACKED CARDS SECTION (APPLE / LINEAR STYLE) ===== */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="text-center space-y-2 max-w-2xl mx-auto">
-          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950 px-3 py-1 rounded-full">
-            Cara Kerja Platform
+          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950/80 px-3.5 py-1.5 rounded-full border border-emerald-500/20 inline-flex items-center gap-1.5 shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+            Ekosistem Terintegrasi
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 dark:text-white">
-            3 Langkah Mudah Penggunaan
+            Layanan Terpadu Warga Maleber
           </h2>
           <p className="text-xs sm:text-sm text-zinc-500">
-            Kemudahan akses layanan bagi seluruh warga Desa Maleber
+            Gulir ke bawah untuk melihat bagaimana ekosistem digital memberdayakan ekonomi desa Anda
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+        {/* Stacked Cards Container */}
+        <div className="relative space-y-6 pb-8">
+          {STACKED_FEATURES.map((card, idx) => {
+            const Icon = card.icon;
+            return (
+              <div 
+                key={card.step}
+                className="sticky top-20 sm:top-24 rounded-3xl p-6 sm:p-9 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-zinc-200/90 dark:border-zinc-800/90 shadow-2xl transition-all hover:border-emerald-500/40"
+                style={{
+                  zIndex: idx + 1,
+                  transform: `translateY(${idx * 4}px)`
+                }}
+              >
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  
+                  {/* Left Column Info */}
+                  <div className="space-y-4 flex-1">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className={`text-[11px] font-black px-3 py-1 rounded-full border ${card.badgeColor}`}>
+                        {card.badge}
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-zinc-400 dark:text-zinc-500">
+                        LANGKAH {card.step}
+                      </span>
+                    </div>
 
-          {/* Step 1 */}
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 text-center">
-            <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-xs font-black px-3 py-1 rounded-full">
-              LANGKAH 01
-            </span>
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center mx-auto shadow-md">
-              <ShoppingBag className="w-7 h-7" />
-            </div>
-            <h3 className="font-extrabold text-lg text-zinc-900 dark:text-white">Pilih Produk / Layanan Ojek</h3>
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              Jelajahi berbagai kuliner khas Cianjur, beras Pandanwangi, atau tentukan titik jemput ojek online.
-            </p>
-          </div>
+                    <div className="space-y-1.5">
+                      <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white leading-snug">
+                        {card.title}
+                      </h3>
+                      <p className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                        {card.tagline}
+                      </p>
+                    </div>
 
-          {/* Step 2 */}
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 text-center">
-            <span className="bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 text-xs font-black px-3 py-1 rounded-full">
-              LANGKAH 02
-            </span>
-            <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-950 text-teal-600 flex items-center justify-center mx-auto shadow-md">
-              <Bike className="w-7 h-7" />
-            </div>
-            <h3 className="font-extrabold text-lg text-zinc-900 dark:text-white">Diproses &amp; Diantar Driver</h3>
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              Penjual menyiapkan pesanan dan mitra driver ojek Maleber siap mengantar paket ke rumah Anda.
-            </p>
-          </div>
+                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed max-w-xl">
+                      {card.description}
+                    </p>
 
-          {/* Step 3 */}
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 text-center">
-            <span className="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-xs font-black px-3 py-1 rounded-full">
-              LANGKAH 03
-            </span>
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950 text-amber-600 flex items-center justify-center mx-auto shadow-md">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
-            <h3 className="font-extrabold text-lg text-zinc-900 dark:text-white">Terima &amp; Beri Ulasan</h3>
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              Terima pesanan di tempat dan berikan rating ulasan bintang untuk mendukung perkembangan UMKM desa.
-            </p>
-          </div>
+                    {/* Highlights check list */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      {card.highlights.map((hl, hIdx) => (
+                        <div key={hIdx} className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                          <div className="w-4 h-4 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                          <span>{hl}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
+                  {/* Right Column Action Card */}
+                  <div className="w-full md:w-64 flex flex-col items-center justify-center p-6 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/80 dark:border-zinc-700/80 space-y-4 shrink-0 text-center">
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border shadow-md ${card.iconBg}`}>
+                      <Icon className="w-8 h-8" />
+                    </div>
+
+                    <button
+                      onClick={() => onEnterApp(card.role)}
+                      className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs py-3 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer group"
+                    >
+                      <span>{card.ctaText}</span>
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
       {/* ===== TESTIMONIALS SECTION ===== */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-3xl p-8 sm:p-12 shadow-2xl space-y-8">
-          <div className="text-center space-y-2">
-            <span className="text-xs font-extrabold text-emerald-300 uppercase tracking-widest">Testimoni Warga Maleber</span>
-            <h2 className="text-2xl sm:text-4xl font-black">Apa Kata Warga &amp; Pelaku UMKM?</h2>
+        <div className="bg-gradient-to-br from-zinc-900 via-emerald-950 to-zinc-950 text-white rounded-3xl p-8 sm:p-12 shadow-2xl border border-emerald-500/30 relative overflow-hidden space-y-8">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="text-center space-y-2 relative z-10">
+            <span className="text-xs font-extrabold text-emerald-400 uppercase tracking-widest bg-emerald-900/60 border border-emerald-500/30 px-3.5 py-1 rounded-full">
+              Testimoni Warga Desa
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-black">Pengalaman Nyata Warga Maleber</h2>
           </div>
 
-          <div className="max-w-3xl mx-auto text-center space-y-6">
-            <p className="text-base sm:text-xl font-medium italic leading-relaxed text-emerald-50">
+          <div className="max-w-3xl mx-auto text-center space-y-6 relative z-10">
+            <div className="flex items-center justify-center gap-1 text-amber-400">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
+              ))}
+            </div>
+
+            <p className="text-base sm:text-xl font-medium italic leading-relaxed text-zinc-100">
               &ldquo;{TESTIMONIALS[activeTestimonial].text}&rdquo;
             </p>
 
-            <div>
+            <div className="space-y-1">
               <h4 className="font-black text-base text-white">{TESTIMONIALS[activeTestimonial].name}</h4>
-              <p className="text-xs text-emerald-300 font-semibold">{TESTIMONIALS[activeTestimonial].role}</p>
+              <p className="text-xs text-emerald-300 font-semibold">
+                {TESTIMONIALS[activeTestimonial].role} • <span className="text-amber-400 font-bold">Terverifikasi</span>
+              </p>
             </div>
+          </div>
+
+          {/* Testimonial Selectors */}
+          <div className="flex items-center justify-center gap-2 pt-2 relative z-10">
+            {TESTIMONIALS.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveTestimonial(i)}
+                className={`h-2.5 rounded-full transition-all cursor-pointer ${
+                  activeTestimonial === i ? 'w-8 bg-emerald-400' : 'w-2.5 bg-zinc-700 hover:bg-zinc-600'
+                }`}
+              />
+            ))}
           </div>
         </div>
       </section>
