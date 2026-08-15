@@ -465,6 +465,82 @@ export default function AuthModal({
     onClose();
   };
 
+  // FULLSCREEN INTERACTIVE MAP PICKER FOR REGISTRATION / PROFILE
+  if (showFullscreenRegisterMap) {
+    return (
+      <div className="fixed inset-0 z-[9999999] w-screen h-screen bg-zinc-950 flex flex-col overflow-hidden animate-in fade-in duration-200">
+        {/* Fullscreen Leaflet Map Container with 100% viewport */}
+        <div className="absolute inset-0 w-full h-full">
+          <MapComponent
+            center={storeCoords}
+            zoom={16}
+            selectionMode="dest"
+            className="w-full h-full min-h-screen rounded-none shadow-none"
+            destLocation={{ lat: storeCoords.lat, lng: storeCoords.lng, address: homeAddress }}
+            onSelectDest={(lat, lng) => handleRegisterMarkerDragEnd(lat, lng)}
+          />
+        </div>
+
+        {/* Clean Floating Top Header Pill */}
+        <div className="fixed top-4 left-3 right-3 z-[10000000] flex items-center justify-between gap-2 max-w-xl mx-auto pointer-events-none">
+          <button
+            type="button"
+            onClick={() => setShowFullscreenRegisterMap(false)}
+            className="pointer-events-auto bg-zinc-900/90 backdrop-blur-md text-white h-10 px-4 rounded-full shadow-2xl border border-white/15 flex items-center justify-center gap-1.5 hover:bg-black transition-all text-xs font-bold shrink-0 cursor-pointer"
+          >
+            ← Kembali ke Form
+          </button>
+
+          <div className="bg-zinc-900/90 backdrop-blur-md px-4 py-2 rounded-full shadow-2xl border border-emerald-500/40 text-center pointer-events-auto truncate max-w-[200px] sm:max-w-xs">
+            <p className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider">
+              {registerRole === 'seller' ? '📍 Lokasi Toko UMKM' : '📍 Lokasi Rumah Warga'}
+            </p>
+            <p className="text-[11px] font-medium text-zinc-200 truncate">
+              Klik / Geser titik pin pada peta
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    handleRegisterMarkerDragEnd(pos.coords.latitude, pos.coords.longitude);
+                  },
+                  () => {},
+                  { enableHighAccuracy: true }
+                );
+              }
+            }}
+            className="pointer-events-auto bg-emerald-600 hover:bg-emerald-500 text-white h-10 px-4 rounded-full shadow-2xl flex items-center justify-center gap-1.5 transition-all text-xs font-extrabold border border-emerald-400/30 shrink-0 cursor-pointer"
+          >
+            <Crosshair className="w-4 h-4" />
+            <span>GPS</span>
+          </button>
+        </div>
+
+        {/* Confirm Location Bottom Sheet Card */}
+        <div className="fixed bottom-6 left-3 right-3 z-[10000000] max-w-md mx-auto pointer-events-none">
+          <div className="bg-zinc-900/95 backdrop-blur-md p-4 rounded-3xl border border-zinc-800 shadow-2xl space-y-3 pointer-events-auto">
+            <div className="flex items-start gap-2.5 px-1 text-zinc-200 text-xs font-medium">
+              <MapPin className="w-4.5 h-4.5 text-emerald-400 shrink-0 mt-0.5" />
+              <span className="line-clamp-2 leading-relaxed">{homeAddress || 'Lokasi Terpilih di Peta'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowFullscreenRegisterMap(false)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all w-full cursor-pointer"
+            >
+              <CheckCircle2 className="w-4.5 h-4.5" />
+              Gunakan Titik Lokasi Ini
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 modal-overlay" onClick={onClose}>
       <div 
@@ -1197,64 +1273,6 @@ export default function AuthModal({
         </div>
 
       </div>
-
-      {/* FULLSCREEN INTERACTIVE MAP PICKER FOR REGISTRATION */}
-      {showFullscreenRegisterMap && (
-        <div className="fixed inset-0 z-[999999] bg-zinc-950 flex flex-col animate-in fade-in zoom-in-95 duration-200">
-          {/* Top Bar Header */}
-          <div className="bg-zinc-900/90 backdrop-blur-md px-4 py-3 border-b border-zinc-800 flex items-center justify-between z-10 shadow-lg">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-white">
-                  {registerRole === 'seller' ? '📍 Tentukan Titik Lokasi Toko' : '📍 Tentukan Titik Lokasi Rumah'}
-                </h3>
-                <p className="text-[11px] text-zinc-400">
-                  Geser pin atau klik pada peta untuk menetapkan titik lokasi akurat
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowFullscreenRegisterMap(false)}
-              className="p-2 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Fullscreen Map Area */}
-          <div className="flex-1 relative w-full h-full">
-            <MapComponent
-              center={storeCoords}
-              zoom={16}
-              selectionMode="dest"
-              destLocation={{ lat: storeCoords.lat, lng: storeCoords.lng, address: homeAddress }}
-              onSelectDest={(lat, lng) => handleRegisterMarkerDragEnd(lat, lng)}
-            />
-          </div>
-
-          {/* Bottom Floating Bar */}
-          <div className="fixed bottom-6 left-3 right-3 z-[1000000] max-w-md mx-auto pointer-events-none">
-            <div className="bg-zinc-900/95 backdrop-blur-md p-4 rounded-3xl border border-zinc-800 shadow-2xl space-y-3 pointer-events-auto">
-              <div className="flex items-start gap-2.5 px-1 text-zinc-200 text-xs font-medium">
-                <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span className="line-clamp-2 leading-relaxed">{homeAddress || 'Lokasi Terpilih di Peta'}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowFullscreenRegisterMap(false)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm py-3.5 px-5 rounded-2xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all w-full cursor-pointer"
-              >
-                <CheckCircle2 className="w-4.5 h-4.5" />
-                Gunakan Titik Lokasi Ini
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
