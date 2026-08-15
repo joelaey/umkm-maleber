@@ -572,7 +572,7 @@ export default function AdminMode({
             </div>
           </div>
 
-          {/* Untitled UI Top Metric Cards (3 Columns) */}
+          {/* Untitled UI Top Metric Cards (4 Columns) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
             {/* Card 1: All revenue */}
@@ -582,7 +582,7 @@ export default function AdminMode({
                   <DollarSign className="w-5 h-5" />
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> 2.4%
+                  <ArrowUpRight className="w-3.5 h-3.5" /> {totalVolume > 0 ? '+100%' : '0%'}
                 </span>
               </div>
               <div>
@@ -599,8 +599,8 @@ export default function AdminMode({
                 <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center">
                   <Building2 className="w-5 h-5" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> 18.5%
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+                  <ArrowUpRight className="w-3.5 h-3.5" /> {totalPlatformRevenue > 0 ? '+100%' : '0%'}
                 </span>
               </div>
               <div>
@@ -617,8 +617,8 @@ export default function AdminMode({
                 <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-300">
                   <Eye className="w-5 h-5" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> 6.2%
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-700">
+                  Real-time
                 </span>
               </div>
               <div>
@@ -636,11 +636,11 @@ export default function AdminMode({
                   <Users className="w-5 h-5" />
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> 0.8%
+                  Terverifikasi
                 </span>
               </div>
               <div>
-                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Mitra Aktif</p>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Mitra Terdaftar</p>
                 <h4 className="text-2xl font-black text-zinc-900 dark:text-white mt-1 tabular-nums">
                   {stores.length + drivers.length} <span className="text-xs font-normal text-zinc-400">Mitra</span>
                 </h4>
@@ -650,119 +650,180 @@ export default function AdminMode({
           </div>
 
           {/* Untitled UI Net Revenue Chart Section */}
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6">
-            
-            {/* Chart Header & Time Period Filters */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Net revenue kas desa</span>
+          {(() => {
+            const chartLabels = dashboardTimeRange === '12m'
+              ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+              : dashboardTimeRange === '30d'
+              ? ['M1 (1-7)', 'M2 (8-14)', 'M3 (15-21)', 'M4 (22-31)']
+              : dashboardTimeRange === '7d'
+              ? ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+              : ['00:00', '06:00', '12:00', '18:00', '23:59'];
+
+            const buckets = new Array(chartLabels.length).fill(0);
+            const allTx = [
+              ...orders.map((o) => {
+                const productSubtotal = o.totalAmount - (o.deliveryFee || 5000);
+                const fees = calculateOrderFees(productSubtotal, o.deliveryFee || 5000);
+                return { amount: fees.platformRevenue, date: o.createdAt ? new Date(o.createdAt) : new Date() };
+              }),
+              ...rides.map((r) => {
+                const fees = calculateRideFees(r.fare);
+                return { amount: fees.platformRevenue, date: r.createdAt ? new Date(r.createdAt) : new Date() };
+              })
+            ];
+
+            allTx.forEach((tx) => {
+              if (dashboardTimeRange === '12m') {
+                const m = tx.date.getMonth();
+                if (m >= 0 && m < 12) buckets[m] += tx.amount;
+              } else if (dashboardTimeRange === '30d') {
+                const day = tx.date.getDate();
+                const week = Math.min(Math.floor((day - 1) / 7), 3);
+                buckets[week] += tx.amount;
+              } else if (dashboardTimeRange === '7d') {
+                const day = (tx.date.getDay() + 6) % 7;
+                buckets[day] += tx.amount;
+              } else {
+                const hour = tx.date.getHours();
+                const slot = Math.min(Math.floor(hour / 6), 4);
+                buckets[slot] += tx.amount;
+              }
+            });
+
+            const maxRevenueInPeriod = Math.max(...buckets, 1000);
+            const hasTransactions = (orders.length + rides.length) > 0 && buckets.some((v) => v > 0);
+
+            const svgCoordinates = buckets.map((val, idx) => {
+              const x = chartLabels.length > 1 ? (idx / (chartLabels.length - 1)) * 1000 : 500;
+              const y = hasTransactions && val > 0 
+                ? 220 - (val / maxRevenueInPeriod) * 160 
+                : 220; // flat baseline if 0
+              return { x, y, val };
+            });
+
+            const svgPathString = svgCoordinates.reduce((acc, pt, idx, arr) => {
+              if (idx === 0) return `M ${pt.x},${pt.y}`;
+              const prev = arr[idx - 1];
+              const midX = (prev.x + pt.x) / 2;
+              return `${acc} C ${midX},${prev.y} ${midX},${pt.y} ${pt.x},${pt.y}`;
+            }, '');
+
+            const svgAreaString = `${svgPathString} L 1000,220 L 0,220 Z`;
+
+            return (
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 sm:p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6">
+                
+                {/* Chart Header & Time Period Filters */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Net revenue kas desa (Akurat Real-Time)</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tabular-nums">
+                        {formatRupiah(totalPlatformRevenue)}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                        totalPlatformRevenue > 0
+                          ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800'
+                          : 'text-zinc-500 bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700'
+                      }`}>
+                        {totalPlatformRevenue > 0 ? '↗ Aktif Berjalan' : 'Flat (Belum Ada Order)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Time Range Filter Buttons */}
+                  <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 self-start sm:self-auto">
+                    {(['12m', '30d', '7d', '24h'] as const).map((range) => {
+                      const labelMap = { '12m': '12 months', '30d': '30 days', '7d': '7 days', '24h': '24 hours' };
+                      return (
+                        <button
+                          key={range}
+                          type="button"
+                          onClick={() => setDashboardTimeRange(range)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                            dashboardTimeRange === range
+                              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm'
+                              : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                          }`}
+                        >
+                          {labelMap[range]}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tabular-nums">
-                    {formatRupiah(totalPlatformRevenue)}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                    <ArrowUpRight className="w-3 h-3" /> 2.4%
-                  </span>
+
+                {/* Minimalist Dynamic SVG Area Line Chart */}
+                <div className="w-full h-64 sm:h-72 relative pt-4">
+                  <svg className="w-full h-full overflow-visible" viewBox="0 0 1000 240" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="purpleGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
+                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Horizontal Grid lines */}
+                    <line x1="0" y1="40" x2="1000" y2="40" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
+                    <line x1="0" y1="100" x2="1000" y2="100" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
+                    <line x1="0" y1="160" x2="1000" y2="160" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
+                    <line x1="0" y1="220" x2="1000" y2="220" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
+
+                    {/* Dynamic Trend Area Fill */}
+                    <path
+                      d={svgAreaString}
+                      fill={hasTransactions ? 'url(#purpleGradient)' : 'none'}
+                    />
+
+                    {/* Dynamic Trend Stroke Line */}
+                    <path
+                      d={svgPathString}
+                      fill="none"
+                      stroke={hasTransactions ? '#7c3aed' : '#a1a1aa'}
+                      strokeWidth={hasTransactions ? '3' : '2'}
+                      strokeDasharray={hasTransactions ? undefined : '4 4'}
+                      strokeLinecap="round"
+                    />
+
+                    {/* Dynamic Plot Points */}
+                    {svgCoordinates.map((pt, i) => (
+                      <circle
+                        key={i}
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={hasTransactions && pt.val > 0 ? '4.5' : '2.5'}
+                        className={hasTransactions && pt.val > 0 ? 'fill-white dark:fill-zinc-900 stroke-purple-600' : 'fill-zinc-300 dark:fill-zinc-700'}
+                        strokeWidth={hasTransactions && pt.val > 0 ? '2.5' : '1'}
+                      />
+                    ))}
+                  </svg>
+
+                  {!hasTransactions && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm border border-zinc-200 dark:border-zinc-800 px-4 py-2 rounded-2xl shadow-sm text-center">
+                        <p className="text-xs font-bold text-zinc-600 dark:text-zinc-300">
+                          Grafik Flat (Rp 0)
+                        </p>
+                        <p className="text-[11px] text-zinc-400">
+                          Grafik akan otomatis naik secara matematis begitu ada transaksi pertama selesai.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Month / Time Labels along X-Axis */}
+                  <div className="flex justify-between items-center text-[10px] sm:text-xs text-zinc-400 font-semibold pt-2">
+                    {chartLabels.map((m) => (
+                      <span key={m}>{m}</span>
+                    ))}
+                  </div>
                 </div>
+
               </div>
-
-              {/* Time Range Filter Buttons */}
-              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 self-start sm:self-auto">
-                {(['12m', '30d', '7d', '24h'] as const).map((range) => {
-                  const labelMap = { '12m': '12 months', '30d': '30 days', '7d': '7 days', '24h': '24 hours' };
-                  return (
-                    <button
-                      key={range}
-                      type="button"
-                      onClick={() => setDashboardTimeRange(range)}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                        dashboardTimeRange === range
-                          ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm'
-                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-                      }`}
-                    >
-                      {labelMap[range]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Minimalist SVG Area Line Chart (Matching Screenshot) */}
-            <div className="w-full h-64 sm:h-72 relative pt-4">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 1000 240" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="purpleGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
-                  </linearGradient>
-                  <linearGradient id="dottedGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#c084fc" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Horizontal Grid lines */}
-                <line x1="0" y1="40" x2="1000" y2="40" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
-                <line x1="0" y1="100" x2="1000" y2="100" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
-                <line x1="0" y1="160" x2="1000" y2="160" stroke="currentColor" className="text-zinc-100 dark:text-zinc-800/80" strokeDasharray="4 4" />
-                <line x1="0" y1="220" x2="1000" y2="220" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
-
-                {/* Benchmark Dotted Secondary Line (Past Year / Baseline) */}
-                <path
-                  d="M 0,200 Q 150,180 300,160 T 600,130 T 800,110 T 1000,95"
-                  fill="none"
-                  stroke="#c084fc"
-                  strokeWidth="2"
-                  strokeDasharray="4 4"
-                  opacity="0.6"
-                />
-
-                {/* Primary Trend Area Fill */}
-                <path
-                  d="M 0,170 Q 120,165 240,150 T 480,140 T 700,100 T 850,90 T 1000,60 L 1000,220 L 0,220 Z"
-                  fill="url(#purpleGradient)"
-                />
-
-                {/* Primary Trend Stroke Line */}
-                <path
-                  d="M 0,170 Q 120,165 240,150 T 480,140 T 700,100 T 850,90 T 1000,60"
-                  fill="none"
-                  stroke="#7c3aed"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-
-                {/* Key Plot Points */}
-                {[
-                  { x: 240, y: 150 },
-                  { x: 480, y: 140 },
-                  { x: 700, y: 100 },
-                  { x: 850, y: 90 },
-                  { x: 1000, y: 60 }
-                ].map((pt, i) => (
-                  <circle
-                    key={i}
-                    cx={pt.x}
-                    cy={pt.y}
-                    r="4.5"
-                    className="fill-white dark:fill-zinc-900 stroke-purple-600"
-                    strokeWidth="2.5"
-                  />
-                ))}
-              </svg>
-
-              {/* Month / Time Labels along X-Axis */}
-              <div className="flex justify-between items-center text-[10px] sm:text-xs text-zinc-400 font-semibold pt-2">
-                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m) => (
-                  <span key={m}>{m}</span>
-                ))}
-              </div>
-            </div>
-
-          </div>
+            );
+          })()}
 
           {/* Untitled UI Customers / Transaksi Keuangan Berjalan Table */}
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden space-y-4 p-5 sm:p-6">

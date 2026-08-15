@@ -4,9 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Utensils, Bike, ShoppingBag, ShieldCheck, ArrowRight, Star, 
   TrendingUp, Users, CheckCircle2, MapPin, Zap, Globe, 
-  Phone, Clock, Award, Sparkles, Building2, Crown, Store,
-  Compass, ChevronRight, Package, Truck, Wallet, Shield,
-  Layers, Landmark, HeartHandshake, Check
+  Phone, Clock, Award, Sparkles, Store,
+  Package, Truck, Wallet, Check
 } from 'lucide-react';
 import { UserRole } from '@/types';
 import Topography from './Topography';
@@ -108,23 +107,6 @@ const STACKED_FEATURES = [
     ],
     ctaText: 'Mulai Transaksi',
     role: 'buyer' as const
-  },
-  {
-    step: '04',
-    badge: 'Pemberdayaan Desa',
-    badgeColor: 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-500/20',
-    title: 'Transparansi Kas & Kemajuan Ekonomi Desa',
-    tagline: 'Perputaran Uang Berputar di Dalam Desa Sendiri',
-    description: 'Setiap transaksi berkontribusi langsung pada kas pembangunan dan operasional Desa Maleber. Super Admin dan Petugas Desa memantau rekapitulasi keuangan secara terbuka dan akuntabel.',
-    icon: Landmark,
-    iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
-    highlights: [
-      'Dashboard Rekapitulasi Real-Time Super Admin',
-      'Export Laporan Keuangan ke Excel (.xlsx) 1-Klik',
-      'Meningkatkan Pendapatan Asli Desa (PADes)'
-    ],
-    ctaText: 'Masuk Dashboard Admin',
-    role: 'admin' as const
   }
 ];
 
@@ -161,77 +143,95 @@ export default function LandingPage({
   ordersCount = 0
 }: LandingPageProps) {
   const [activeTestimonial, setActiveTestimonial] = useState(0);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
   const statsStores = useCountUp(storesCount || 12);
   const statsDrivers = useCountUp(driversCount || 8);
   const statsProducts = useCountUp(productsCount || 24);
   const statsOrders = useCountUp(ordersCount || 150);
 
   useEffect(() => {
+    const checkDark = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    };
+    checkDark();
+
+    const observer = new MutationObserver(checkDark);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
     const timer = setInterval(() => {
       setActiveTestimonial((prev) => (prev + 1) % TESTIMONIALS.length);
     }, 6000);
-    return () => clearInterval(timer);
+
+    return () => {
+      observer.disconnect();
+      clearInterval(timer);
+    };
   }, []);
 
   return (
     <div className="space-y-16 sm:space-y-24 pb-20 overflow-hidden">
 
-      {/* ===== HERO SECTION WITH REACT BITS TOPOGRAPHY ===== */}
-      <section className="relative min-h-[580px] sm:min-h-[640px] flex items-center justify-center pt-8 pb-16 overflow-hidden rounded-3xl sm:rounded-[40px] mx-2 sm:mx-4 border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-950 shadow-2xl">
+      {/* ===== HERO SECTION WITH SEAMLESS FADE & REACT BITS TOPOGRAPHY ===== */}
+      <section className="relative min-h-[580px] sm:min-h-[640px] flex items-center justify-center pt-10 pb-20 -mt-6 sm:-mt-8 overflow-hidden">
         
-        {/* React Bits Interactive Topography Background */}
-        <div className="absolute inset-0 w-full h-full opacity-65 dark:opacity-75 pointer-events-auto">
+        {/* React Bits Interactive Topography Background (Auto Light / Dark Mode) */}
+        <div className="absolute inset-0 w-full h-full pointer-events-auto">
           <Topography
-            lowColor="#064e3b"
-            midColor="#059669"
-            highColor="#fbbf24"
-            speed={0.25}
+            lowColor={isDarkMode ? '#064e3b' : '#a7f3d0'}
+            midColor={isDarkMode ? '#059669' : '#059669'}
+            highColor={isDarkMode ? '#fbbf24' : '#d97706'}
+            speed={0.22}
             morphAmount={3.2}
-            morphSpeed={0.04}
-            bands={2.5}
-            thickness={0.012}
-            scale={1.1}
+            morphSpeed={0.035}
+            bands={2.8}
+            thickness={isDarkMode ? 0.012 : 0.014}
+            scale={1.15}
             pixelSize={1.0}
-            glow={0.65}
+            glow={isDarkMode ? 0.65 : 0.25}
             colorMode="elevation"
-            contrast={3.2}
-            brightness={1.1}
+            contrast={isDarkMode ? 3.2 : 2.6}
+            brightness={isDarkMode ? 1.1 : 0.9}
             fillBands={false}
-            opacity={0.9}
+            opacity={isDarkMode ? 0.85 : 0.45}
             grain={true}
-            grainIntensity={0.04}
+            grainIntensity={isDarkMode ? 0.04 : 0.02}
             mouseInteraction={true}
             mouseRadius={0.35}
             mouseStrength={0.45}
           />
         </div>
 
-        {/* Ambient Overlays */}
-        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/40 via-zinc-950/70 to-zinc-950 pointer-events-none" />
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+        {/* Seamless Blend Overlays: Top & Bottom Smooth Gradient Fades (No hard box outlines) */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/60 via-white/20 to-white dark:from-zinc-950/70 dark:via-zinc-950/40 dark:to-zinc-950 pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white dark:from-zinc-950 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent pointer-events-none" />
+
+        {/* Ambient Glow Orbs */}
+        <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-emerald-500/15 dark:bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-amber-500/10 dark:bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
 
         {/* Hero Content Box */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center space-y-6 sm:space-y-8 py-10 pointer-events-auto">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center space-y-6 sm:space-y-8 py-8 pointer-events-auto">
 
           {/* Official Badge Pill */}
-          <div className="inline-flex items-center gap-2 bg-emerald-500/15 backdrop-blur-md border border-emerald-400/30 px-4 py-1.5 rounded-full shadow-lg animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-black text-emerald-200 uppercase tracking-widest">
+          <div className="inline-flex items-center gap-2 bg-emerald-500/10 dark:bg-emerald-500/15 backdrop-blur-md border border-emerald-500/30 px-4 py-1.5 rounded-full shadow-sm animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs font-black text-emerald-900 dark:text-emerald-200 uppercase tracking-widest">
               Digitalisasi Resmi Desa Maleber • Cianjur
             </span>
           </div>
 
           {/* Main Hero Headline */}
           <div className="space-y-3 max-w-4xl mx-auto">
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.12]">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-zinc-900 dark:text-white tracking-tight leading-[1.12]">
               Pasar Digital &amp; Ojek Online{' '}
-              <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-emerald-600 via-teal-500 to-amber-500 dark:from-emerald-400 dark:via-teal-300 dark:to-amber-300 bg-clip-text text-transparent">
                 Pemberdayaan Desa
               </span>
             </h1>
-            <p className="text-sm sm:text-lg text-zinc-300 max-w-2xl mx-auto leading-relaxed font-normal">
+            <p className="text-sm sm:text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto leading-relaxed font-normal">
               Beli kuliner khas Cianjur, beras Pandanwangi asli, kebutuhan harian, hingga pesan antar-jemput ojek desa cepat langsung dari warga untuk warga.
             </p>
           </div>
@@ -247,46 +247,38 @@ export default function LandingPage({
               <button
                 key={i}
                 onClick={() => onEnterApp('buyer')}
-                className="bg-white/10 hover:bg-emerald-500/20 backdrop-blur-md border border-white/15 hover:border-emerald-400/50 text-white text-xs font-bold px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-sm"
+                className="bg-white/80 dark:bg-white/10 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 backdrop-blur-md border border-zinc-200 dark:border-white/15 hover:border-emerald-500/50 text-zinc-800 dark:text-white text-xs font-bold px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-sm"
               >
                 {cat.label}
               </button>
             ))}
           </div>
 
-          {/* Hero Action CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2 max-w-md mx-auto">
+          {/* Hero Action CTA Button */}
+          <div className="flex items-center justify-center pt-2 max-w-xs mx-auto">
             <button
               onClick={() => onEnterApp('buyer')}
-              className="w-full sm:w-auto flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-sm px-7 py-4 rounded-2xl shadow-xl shadow-emerald-600/40 transition-all flex items-center justify-center gap-2 cursor-pointer group scale-100 hover:scale-[1.02] active:scale-95"
+              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm px-8 py-4 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 cursor-pointer group scale-100 hover:scale-[1.02] active:scale-95"
             >
-              <ShoppingBag className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
-              <span>Belanja Sekarang</span>
+              <ShoppingBag className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <span>Jelajahi &amp; Belanja Sekarang</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </button>
-
-            <button
-              onClick={() => onOpenAuth('login')}
-              className="w-full sm:w-auto flex-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 hover:text-white font-black text-sm px-6 py-4 rounded-2xl border border-white/20 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg backdrop-blur-md"
-            >
-              <Crown className="w-4.5 h-4.5 text-amber-400" />
-              <span>Masuk Akun</span>
             </button>
           </div>
 
           {/* Trust Badges */}
-          <div className="pt-8 border-t border-white/10 grid grid-cols-3 gap-4 text-center max-w-2xl mx-auto">
+          <div className="pt-8 border-t border-zinc-200/80 dark:border-white/10 grid grid-cols-3 gap-4 text-center max-w-2xl mx-auto">
             <div className="space-y-0.5">
-              <span className="text-xl sm:text-2xl font-black text-emerald-400 block">100% Asli</span>
-              <span className="text-[11px] text-zinc-400 font-semibold">Produk Warga Desa</span>
+              <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 block">100% Asli</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold">Produk Warga Desa</span>
             </div>
             <div className="space-y-0.5">
-              <span className="text-xl sm:text-2xl font-black text-teal-400 block">Cepat</span>
-              <span className="text-[11px] text-zinc-400 font-semibold">Driver Siaga di Desa</span>
+              <span className="text-xl sm:text-2xl font-black text-teal-600 dark:text-teal-400 block">Cepat</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold">Driver Siaga di Desa</span>
             </div>
             <div className="space-y-0.5">
-              <span className="text-xl sm:text-2xl font-black text-amber-400 block">Resmi</span>
-              <span className="text-[11px] text-zinc-400 font-semibold">Diawasi Kantor Desa</span>
+              <span className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 block">Resmi</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-semibold">Diawasi Kantor Desa</span>
             </div>
           </div>
 
@@ -338,18 +330,18 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* ===== SCROLL STACKED CARDS SECTION (APPLE / LINEAR STYLE) ===== */}
+      {/* ===== SCROLL STACKED CARDS SECTION (APPLE / LINEAR STYLE - 3 CORE BUYER CARDS) ===== */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="text-center space-y-2 max-w-2xl mx-auto">
           <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950/80 px-3.5 py-1.5 rounded-full border border-emerald-500/20 inline-flex items-center gap-1.5 shadow-sm">
             <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-            Ekosistem Terintegrasi
+            Layanan Terpadu
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 dark:text-white">
-            Layanan Terpadu Warga Maleber
+            Kemudahan untuk Seluruh Warga
           </h2>
           <p className="text-xs sm:text-sm text-zinc-500">
-            Gulir ke bawah untuk melihat bagaimana ekosistem digital memberdayakan ekonomi desa Anda
+            Gulir ke bawah untuk melihat keunggulan berbelanja dan memesan ojek di Desa Maleber
           </p>
         </div>
 

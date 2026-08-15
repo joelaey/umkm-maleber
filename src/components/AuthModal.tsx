@@ -25,6 +25,18 @@ export default function AuthModal({
 }: AuthModalProps) {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setStep('form');
+      setForgotStep('input');
+      setErrorMsg('');
+      setGeneratedOtp('');
+      setInputOtp('');
+      setPinDigits(['', '', '', '', '', '']);
+    }
+  }, [isOpen, initialMode]);
+
   // Login Form State
   const [identifier, setIdentifier] = useState(''); // Can be Email or WhatsApp phone
   const [loginPassword, setLoginPassword] = useState('');
@@ -461,6 +473,8 @@ export default function AuthModal({
       setLoading(false);
     }
 
+    setStep('form');
+    setMode('login');
     onAuthSuccess(newUser);
     onClose();
   };
