@@ -382,6 +382,85 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, user: safeUser });
     }
 
+    if (action === 'check_user_exists') {
+      const { identifier } = data;
+      const cleanInput = (identifier || '').trim().toLowerCase();
+      const cleanPhone = (identifier || '').replace(/[^0-9]/g, '');
+
+      if (!cleanInput && !cleanPhone) {
+        return NextResponse.json({ success: false, error: 'Email atau nomor WhatsApp wajib diisi' }, { status: 400 });
+      }
+
+      const profRes = await queryDb(
+        `SELECT id, name, email, phone, role, avatar FROM public.profiles 
+         WHERE (email IS NOT NULL AND LOWER(email) = LOWER($1)) 
+            OR (phone IS NOT NULL AND REPLACE(phone, ' ', '') = $2) 
+         LIMIT 1`,
+        [cleanInput || '___none___', cleanPhone || '___none___']
+      ).catch(() => ({ rows: [] }));
+
+      const profile = profRes.rows[0];
+
+      if (!profile) {
+        return NextResponse.json({
+          success: false,
+          error: 'Akun email atau nomor WhatsApp tidak terdaftar di sistem Desa Maleber. Silakan periksa kembali!'
+        }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          phone: profile.phone,
+          role: profile.role,
+          avatar: profile.avatar || ''
+        }
+      });
+    }
+
+    if (action === 'reset_password_with_otp') {
+      const { identifier, newPassword } = data;
+      const cleanInput = (identifier || '').trim().toLowerCase();
+      const cleanPhone = (identifier || '').replace(/[^0-9]/g, '');
+
+      if (!newPassword || newPassword.length < 6) {
+        return NextResponse.json({ success: false, error: 'Kata sandi baru minimal 6 karakter' }, { status: 400 });
+      }
+
+      const encryptedPassword = hashPassword(newPassword);
+
+      const updateRes = await queryDb(
+        `UPDATE public.profiles 
+         SET password = $1 
+         WHERE (email IS NOT NULL AND LOWER(email) = LOWER($2)) 
+            OR (phone IS NOT NULL AND REPLACE(phone, ' ', '') = $3) 
+         RETURNING id, name, email, phone, role, avatar`,
+        [encryptedPassword, cleanInput || '___none___', cleanPhone || '___none___']
+      );
+
+      const updatedUser = updateRes.rows[0];
+
+      if (!updatedUser) {
+        return NextResponse.json({ success: false, error: 'Akun pengguna tidak ditemukan untuk diperbarui' }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Kata sandi Anda berhasil diperbarui!',
+        user: {
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          role: updatedUser.email === 'superadmin@maleber.des.id' || updatedUser.email === 'j@superadmin.com' ? 'superadmin' : (updatedUser.role || 'buyer'),
+          avatar: updatedUser.avatar || ''
+        }
+      });
+    }
+
     if (action === 'register_user') {
       const { id, name, email, phone, password, role, avatar } = data;
       const validUserId = parseUuidOrNull(id) || `a0000000-${Date.now().toString().slice(-4)}-4000-8000-${Math.floor(Math.random()*1000000000000).toString().padStart(12, '0')}`;

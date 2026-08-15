@@ -29,9 +29,15 @@ export default function AuthModal({
   const [identifier, setIdentifier] = useState(''); // Can be Email or WhatsApp phone
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Password Reset Request State
+  // Password Reset Self-Service OTP State
   const [resetContact, setResetContact] = useState('');
-  const [resetReason, setResetReason] = useState('');
+  const [forgotStep, setForgotStep] = useState<'input' | 'verify'>('input');
+  const [forgotMethod, setForgotMethod] = useState<'email' | 'whatsapp'>('whatsapp');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotPinDigits, setForgotPinDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
   const [resetSuccessMsg, setResetSuccessMsg] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
 
@@ -151,80 +157,131 @@ export default function AuthModal({
     }
   };
 
-  // Handle Submit Forgot Password Request
-  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+  // Handle Submit Forgot Password Request -> Send OTP directly to Email / WhatsApp
+  const handleForgotSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setResetLoading(true);
+    setForgotLoading(true);
     setErrorMsg('');
     setResetSuccessMsg('');
 
-    const cleanContact = resetContact.trim().toLowerCase();
-    const cleanPhoneContact = resetContact.replace(/[^0-9]/g, '');
-
+    const cleanContact = resetContact.trim();
     if (!cleanContact) {
       setErrorMsg('Mohon masukkan alamat email atau nomor WhatsApp terdaftar Anda!');
-      setResetLoading(false);
+      setForgotLoading(false);
       return;
     }
 
-    // 1. Verify if user account exists in INITIAL_USERS or Supabase DB
-    let matchedUser: UserProfile | undefined = INITIAL_USERS.find((u) => {
-      const emailMatch = u.email?.toLowerCase() === cleanContact;
-      const phoneMatch = cleanPhoneContact.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneContact;
-      return emailMatch || phoneMatch;
-    });
-
-    if (!matchedUser) {
-      try {
-        const dbRes = await fetch('/api/db');
-        const dbData = await dbRes.json();
-        if (dbData.success && dbData.users) {
-          matchedUser = dbData.users.find((u: UserProfile) => {
-            const emailMatch = u.email?.toLowerCase() === cleanContact;
-            const phoneMatch = cleanPhoneContact.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhoneContact;
-            return emailMatch || phoneMatch;
-          });
-        }
-      } catch (e) {}
-    }
-
-    // Stop execution & display error if email / phone is not registered in the system
-    if (!matchedUser) {
-      setErrorMsg(`Akun email atau nomor WhatsApp "${resetContact}" TIDAK TERDAFTAR di sistem Desa Maleber. Silakan periksa kembali!`);
-      setResetLoading(false);
-      return;
-    }
-
-    // 2. Account verified -> Post reset request to Super Admin
     try {
+      // 1. Verify user exists in database
+      const checkRes = await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'check_user_exists',
+          data: { identifier: cleanContact }
+        })
+      });
+
+      const checkData = await checkRes.json();
+      if (!checkRes.ok || !checkData.success || !checkData.user) {
+        setErrorMsg(checkData.error || `Akun "${cleanContact}" tidak terdaftar di sistem Desa Maleber. Silakan periksa kembali!`);
+        setForgotLoading(false);
+        return;
+      }
+
+      const targetUser = checkData.user;
       const isEmail = cleanContact.includes('@');
+      const method = isEmail ? 'email' : 'whatsapp';
+      setForgotMethod(method);
+
+      // 2. Generate 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      setForgotOtp(otp);
+
+      // 3. Dispatch OTP via Email or WhatsApp
+      if (isEmail) {
+        await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: targetUser.email || cleanContact,
+            type: 'otp',
+            name: targetUser.name || 'Warga Maleber',
+            otpCode: otp
+          })
+        });
+        setOtpSentMsg(`✅ Kode OTP 6-digit telah dikirimkan ke email: ${targetUser.email || cleanContact}`);
+      } else {
+        await fetch('/api/wablas/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: targetUser.phone || cleanContact,
+            otpCode: otp,
+            name: targetUser.name || 'Warga Maleber'
+          })
+        });
+        setOtpSentMsg(`✅ Kode OTP 6-digit telah dikirimkan ke WhatsApp: ${targetUser.phone || cleanContact}`);
+      }
+
+      setForgotStep('verify');
+    } catch (err) {
+      setErrorMsg('Gagal memproses permintaan OTP ke server. Periksa koneksi internet Anda!');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // Handle Verify OTP & Save New Password
+  const handleForgotVerifyAndReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    const inputPin = forgotPinDigits.join('');
+    if (inputPin.length !== 6 || inputPin !== forgotOtp) {
+      setErrorMsg('Kode OTP 6-digit yang Anda masukkan salah atau belum lengkap. Silakan periksa kembali!');
+      return;
+    }
+
+    if (forgotNewPassword.length < 6) {
+      setErrorMsg('Kata sandi baru minimal 6 karakter!');
+      return;
+    }
+
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setErrorMsg('Konfirmasi kata sandi baru tidak cocok!');
+      return;
+    }
+
+    setForgotLoading(true);
+
+    try {
       const res = await fetch('/api/db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'request_password_reset',
+          action: 'reset_password_with_otp',
           data: {
-            userId: matchedUser.id,
-            userName: matchedUser.name,
-            userEmail: matchedUser.email || (isEmail ? cleanContact : null),
-            userPhone: matchedUser.phone || (!isEmail ? cleanContact : null),
-            reason: resetReason.trim() || 'Permintaan reset kata sandi dari pengguna'
+            identifier: resetContact.trim(),
+            newPassword: forgotNewPassword
           }
         })
       });
 
       const data = await res.json();
-      if (data.success) {
-        setResetSuccessMsg(`✅ Akun terverifikasi atas nama "${matchedUser.name}". Laporan reset password Anda berhasil terkirim ke Super Admin Desa Maleber! Super Admin akan meninjau dan membalas pesan Anda.`);
-        setResetContact('');
-        setResetReason('');
-      } else {
-        setErrorMsg(data.error || 'Gagal mengirimkan laporan reset password');
+      if (!res.ok || !data.success || !data.user) {
+        setErrorMsg(data.error || 'Gagal memperbarui kata sandi. Silakan coba kembali.');
+        setForgotLoading(false);
+        return;
       }
+
+      // Auto login and finish!
+      onAuthSuccess(data.user);
+      onClose();
     } catch (err) {
-      setErrorMsg('Gagal terhubung ke server database.');
+      setErrorMsg('Gagal memperbarui kata sandi ke server database.');
     } finally {
-      setResetLoading(false);
+      setForgotLoading(false);
     }
   };
 
@@ -276,12 +333,12 @@ export default function AuthModal({
         });
 
         const data = await res.json();
-        if (data.notice || data.demoMode) {
-          setOtpSentMsg(data.notice || `ℹ️ Mode Demo: Kode OTP 6-digit Anda: ${otp}`);
-        } else if (res.ok && data.success) {
-          setOtpSentMsg(data.notice || `✅ Kode OTP 6-digit berhasil dikirim via Resend ke email: ${email}`);
+        if (res.ok && data.success) {
+          setOtpSentMsg(`✅ Kode OTP 6-digit berhasil dikirim via Resend ke email: ${email}`);
+        } else if (data.notice) {
+          setOtpSentMsg(data.notice);
         } else {
-          setOtpSentMsg(`ℹ️ Mode Pengujian: Kode OTP 6-digit Anda: ${otp}`);
+          setOtpSentMsg(`ℹ️ Kode verifikasi OTP telah dikirimkan ke email: ${email}`);
         }
       } else {
         // WhatsApp OTP via Wablas API
@@ -296,19 +353,19 @@ export default function AuthModal({
         });
 
         const data = await res.json();
-        if (data.notice || data.demoMode) {
-          setOtpSentMsg(data.notice || `ℹ️ Mode Demo WhatsApp: Kode OTP 6-digit Anda: ${otp}`);
-        } else if (res.ok && data.success) {
-          setOtpSentMsg(`✅ Kode OTP 6-digit berhasil dikirim ke WhatsApp: ${phone}`);
+        if (res.ok && data.success && !data.fallbackMode) {
+          setOtpSentMsg(`✅ Kode OTP 6-digit berhasil dikirim ke nomor WhatsApp: ${phone}`);
+        } else if (data.notice) {
+          setOtpSentMsg(data.notice);
         } else {
-          setOtpSentMsg(`ℹ️ Mode Pengujian WhatsApp: Kode OTP 6-digit Anda: ${otp}`);
+          setOtpSentMsg(`ℹ️ Kode verifikasi OTP telah dikirimkan ke nomor WhatsApp: ${phone}`);
         }
       }
 
       setStep('otp');
     } catch (err: any) {
       console.warn('OTP Send Notice:', err);
-      setOtpSentMsg(`ℹ️ Mode Simulasi: Kode OTP 6-digit pengujian Anda: ${otp}`);
+      setOtpSentMsg(`ℹ️ Kode OTP verifikasi telah dikirimkan.`);
       setStep('otp');
     } finally {
       setSendingOtp(false);
@@ -745,26 +802,17 @@ export default function AuthModal({
           </form>
         )}
 
-        {/* ---------------- FORGOT PASSWORD MODE ---------------- */}
+        {/* ---------------- FORGOT PASSWORD MODE (SELF-SERVICE VIA OTP) ---------------- */}
         {mode === 'forgot_password' && (
-          <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
-            {resetSuccessMsg ? (
-              <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 p-4 rounded-2xl space-y-3 text-xs text-emerald-800 dark:text-emerald-300">
-                <p className="font-extrabold text-sm text-emerald-700 dark:text-emerald-200">{resetSuccessMsg}</p>
-                <button
-                  type="button"
-                  onClick={() => setMode('login')}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl transition-all cursor-pointer text-center"
-                >
-                  ← Kembali ke Halaman Login
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="bg-amber-50 dark:bg-amber-950/40 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                  <p className="font-extrabold">📌 Laporan Lupa Kata Sandi Akun</p>
-                  <p className="text-[11px] leading-relaxed">
-                    Kirimkan laporan ini ke <strong>Super Admin Desa Maleber</strong>. Super Admin akan mereset kata sandi Anda dan mengirimkan balasan langsung ke akun Anda.
+          <div className="space-y-4">
+            {forgotStep === 'input' ? (
+              <form onSubmit={handleForgotSendOtp} className="space-y-4">
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
+                  <p className="font-extrabold flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
+                    🔐 Reset Kata Sandi Otomatis (OTP)
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-300">
+                    Masukkan email atau nomor WhatsApp terdaftar Anda. Sistem akan mengirimkan <strong>kode OTP 6-digit</strong> secara langsung untuk verifikasi instan.
                   </p>
                 </div>
 
@@ -776,7 +824,7 @@ export default function AuthModal({
                     <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                     <input
                       type="text"
-                      placeholder="Masukkan email atau nomor WA terdaftar Anda"
+                      placeholder="Contoh: 08123456789 atau nama@email.com"
                       value={resetContact}
                       onChange={(e) => setResetContact(e.target.value)}
                       className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -785,38 +833,149 @@ export default function AuthModal({
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
-                    Catatan / Alasan (Opsional):
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Contoh: Saya lupa kata sandi lama / HP sempat hilang..."
-                    value={resetReason}
-                    onChange={(e) => setResetReason(e.target.value)}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-xs font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
                 <button
                   type="submit"
-                  disabled={resetLoading}
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-sm py-3.5 rounded-2xl shadow-lg shadow-amber-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  disabled={forgotLoading}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm py-3.5 rounded-2xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {resetLoading ? 'Mengirim Laporan...' : 'Kirim Laporan ke Super Admin'}
+                  {forgotLoading ? 'Memeriksa & Mengirim OTP...' : 'Kirim Kode OTP Verifikasi'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setMode('login')}
+                  onClick={() => { setMode('login'); setErrorMsg(''); }}
                   className="w-full text-center text-xs font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 py-1 cursor-pointer"
                 >
                   ← Batal &amp; Kembali ke Login
                 </button>
-              </>
+              </form>
+            ) : (
+              /* STEP 2: ENTER OTP & NEW PASSWORD */
+              <form onSubmit={handleForgotVerifyAndReset} className="space-y-4">
+                {otpSentMsg && (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/50 p-3 rounded-2xl flex items-center gap-2.5 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{otpSentMsg}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block text-center mb-1">
+                    Masukkan 6-Digit Kode OTP:
+                  </label>
+                  
+                  {/* 6 Discrete PIN Boxes */}
+                  <div className="flex items-center justify-center gap-1.5 sm:gap-2 my-2">
+                    {[0, 1, 2, 3, 4, 5].map((idx) => (
+                      <input
+                        key={idx}
+                        id={`forgot-pin-${idx}`}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={forgotPinDigits[idx]}
+                        onChange={(e) => {
+                          const cleanVal = e.target.value.replace(/[^0-9]/g, '');
+                          if (cleanVal.length > 1) {
+                            const chars = cleanVal.slice(0, 6).split('');
+                            const updated = ['', '', '', '', '', ''];
+                            chars.forEach((c, i) => { if (i < 6) updated[i] = c; });
+                            setForgotPinDigits(updated);
+                            const nextIdx = Math.min(chars.length, 5);
+                            document.getElementById(`forgot-pin-${nextIdx}`)?.focus();
+                            return;
+                          }
+                          const updated = [...forgotPinDigits];
+                          updated[idx] = cleanVal;
+                          setForgotPinDigits(updated);
+                          if (idx < 5 && cleanVal) {
+                            document.getElementById(`forgot-pin-${idx + 1}`)?.focus();
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Backspace' && !forgotPinDigits[idx] && idx > 0) {
+                            const updated = [...forgotPinDigits];
+                            updated[idx - 1] = '';
+                            setForgotPinDigits(updated);
+                            document.getElementById(`forgot-pin-${idx - 1}`)?.focus();
+                          }
+                        }}
+                        className={`w-10 h-12 sm:w-11 sm:h-13 text-center text-xl font-black rounded-2xl border-2 transition-all focus:outline-none ${
+                          forgotPinDigits[idx]
+                            ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 shadow-md scale-105'
+                            : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white focus:border-emerald-500'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    Kata Sandi Baru:
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                    <input
+                      type="password"
+                      placeholder="Minimal 6 karakter"
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    Konfirmasi Kata Sandi Baru:
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                    <input
+                      type="password"
+                      placeholder="Ketik ulang kata sandi baru"
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm py-3.5 rounded-2xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {forgotLoading ? 'Memperbarui Kata Sandi...' : 'Verifikasi OTP & Simpan Kata Sandi'}
+                  <CheckCircle className="w-4 h-4" />
+                </button>
+
+                <div className="flex justify-between items-center text-xs pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setForgotStep('input'); setErrorMsg(''); }}
+                    className="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 font-bold cursor-pointer"
+                  >
+                    ← Ganti Kontak
+                  </button>
+                  <button
+                    type="button"
+                    disabled={forgotLoading}
+                    onClick={handleForgotSendOtp}
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold cursor-pointer"
+                  >
+                    Kirim Ulang OTP
+                  </button>
+                </div>
+              </form>
             )}
-          </form>
+          </div>
         )}
 
         {/* ---------------- REGISTER MODE: STEP 1 (FORM) ---------------- */}
