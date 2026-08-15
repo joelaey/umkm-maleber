@@ -124,13 +124,24 @@ export async function POST(req: Request) {
     }
 
     let recipient = to;
-    // Resend free tier test mode fallback to account owner email if unverified domain
-    const data = await resend.emails.send({
-      from: 'UMKM Maleber <onboarding@resend.dev>',
+    
+    // 1. Try sending from official verified custom domain @umkmmaleber.com
+    let data = await resend.emails.send({
+      from: 'UMKM Maleber <noreply@umkmmaleber.com>',
       to: [recipient],
       subject: emailSubject,
       html: htmlContent
     });
+
+    // 2. Fallback to onboarding@resend.dev if custom domain is still verifying or unverified
+    if (data.error && (data.error.message?.includes('domain') || data.error.message?.includes('not verified') || data.error.message?.includes('from'))) {
+      data = await resend.emails.send({
+        from: 'UMKM Maleber <onboarding@resend.dev>',
+        to: [recipient],
+        subject: emailSubject,
+        html: htmlContent
+      });
+    }
 
     if (data.error) {
       console.error('Resend API Error:', data.error);
