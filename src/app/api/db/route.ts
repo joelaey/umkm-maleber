@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { queryDb } from '@/lib/db';
 import { hashPassword, verifyPassword } from '@/lib/cryptoUtils';
+import { INITIAL_USERS } from '@/lib/mockData';
 
 function parseUuidOrNull(val: any) {
   if (typeof val !== 'string') return null;
@@ -357,15 +358,53 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: 'Email atau nomor WhatsApp wajib diisi' }, { status: 400 });
       }
 
-      const profRes = await queryDb(
-        `SELECT id, name, email, phone, password, role, avatar FROM public.profiles 
-         WHERE (email IS NOT NULL AND LOWER(email) = LOWER($1)) 
-            OR (phone IS NOT NULL AND REPLACE(phone, ' ', '') = $2) 
-         LIMIT 1`,
-        [cleanInput || '___none___', cleanPhone || '___none___']
-      ).catch(() => ({ rows: [] }));
+      let profile: any = null;
 
-      const profile = profRes.rows[0];
+      try {
+        const profRes = await queryDb(
+          `SELECT id, name, email, phone, password, role, avatar FROM public.profiles 
+           WHERE (email IS NOT NULL AND LOWER(email) = LOWER($1)) 
+              OR (phone IS NOT NULL AND REPLACE(phone, ' ', '') = $2) 
+           LIMIT 1`,
+          [cleanInput || '___none___', cleanPhone || '___none___']
+        );
+        profile = profRes.rows[0];
+      } catch (dbErr) {
+        console.warn('DB Query in login notice:', dbErr);
+      }
+
+      // If not yet in PostgreSQL DB, check INITIAL_USERS seed list (e.g. j@superadmin.com)
+      if (!profile) {
+        const seedUser = INITIAL_USERS.find((u) => {
+          const emailMatch = u.email?.toLowerCase() === cleanInput;
+          const phoneMatch = cleanPhone.length >= 6 && u.phone?.replace(/[^0-9]/g, '') === cleanPhone;
+          return emailMatch || phoneMatch;
+        });
+
+        if (seedUser) {
+          const encryptedPass = seedUser.password 
+            ? (seedUser.password.startsWith('$sha256$') ? seedUser.password : hashPassword(seedUser.password)) 
+            : hashPassword('maleber123');
+
+          // Auto-insert to database in background so it's persisted permanently
+          queryDb(
+            `INSERT INTO public.profiles (id, name, email, phone, password, role, avatar)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, role = EXCLUDED.role`,
+            [seedUser.id, seedUser.name, seedUser.email, seedUser.phone || null, encryptedPass, seedUser.role, seedUser.avatar || null]
+          ).catch(() => {});
+
+          profile = {
+            id: seedUser.id,
+            name: seedUser.name,
+            email: seedUser.email,
+            phone: seedUser.phone,
+            password: encryptedPass,
+            role: seedUser.role,
+            avatar: seedUser.avatar
+          };
+        }
+      }
 
       if (!profile) {
         return NextResponse.json({
@@ -389,7 +428,7 @@ export async function POST(req: Request) {
         name: profile.name,
         email: profile.email,
         phone: profile.phone,
-        role: profile.email === 'superadmin@maleber.des.id' ? 'superadmin' : (profile.role || 'buyer'),
+        role: profile.email === 'superadmin@maleber.des.id' || profile.email === 'j@superadmin.com' ? 'superadmin' : (profile.role || 'buyer'),
         avatar: profile.avatar || ''
       };
 
