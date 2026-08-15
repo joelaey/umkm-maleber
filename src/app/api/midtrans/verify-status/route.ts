@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { queryDb } from '@/lib/db';
 
 export async function POST(req: Request) {
   try {
@@ -40,7 +41,6 @@ export async function POST(req: Request) {
     const data = await res.json();
 
     if (!res.ok) {
-      console.warn('Midtrans Status API Response Notice:', data);
       return NextResponse.json({
         success: false,
         isPaid: false,
@@ -62,6 +62,12 @@ export async function POST(req: Request) {
       } else {
         isPaid = true;
       }
+    }
+
+    if (isPaid) {
+      // Double layer database update in case Webhook had delay
+      await queryDb(`UPDATE public.orders SET payment_status = 'paid', is_paid = TRUE WHERE id = $1`, [orderId]).catch(() => {});
+      await queryDb(`UPDATE public.ride_requests SET payment_status = 'paid', is_paid = TRUE WHERE id = $1`, [orderId]).catch(() => {});
     }
 
     console.log(`[Midtrans Verify] Order ${orderId} Status: ${transactionStatus} -> isPaid: ${isPaid}`);
