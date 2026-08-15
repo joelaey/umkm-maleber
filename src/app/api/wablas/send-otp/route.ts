@@ -73,9 +73,11 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
 🏘️ Desa Maleber, Kec. Karangtengah, Kab. Cianjur`;
 
     // Array of possible Wablas server domain nodes
-    const primaryDomain = process.env.WABLAS_API_URL || 'https://solo.wablas.com';
+    const primaryDomain = process.env.WABLAS_API_URL || 'https://tegal.wablas.com';
     const candidateDomains = [
       primaryDomain,
+      'https://tegal.wablas.com',
+      'https://solo.wablas.com',
       'https://console.wablas.com',
       'https://wablas.com',
       'https://kudus.wablas.com',
