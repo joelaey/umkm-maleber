@@ -145,10 +145,10 @@ export default function LandingPage({
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
-  const statsStores = useCountUp(storesCount || 12);
-  const statsDrivers = useCountUp(driversCount || 8);
-  const statsProducts = useCountUp(productsCount || 24);
-  const statsOrders = useCountUp(ordersCount || 150);
+  const statsStores = useCountUp(storesCount || 0);
+  const statsDrivers = useCountUp(driversCount || 0);
+  const statsProducts = useCountUp(productsCount || 0);
+  const statsOrders = useCountUp(ordersCount || 0);
 
   useEffect(() => {
     const checkDark = () => {
@@ -323,7 +323,7 @@ export default function LandingPage({
               <Truck className="w-5 h-5" />
             </div>
             <h3 className="text-3xl sm:text-4xl font-black text-blue-600 dark:text-blue-400 tabular-nums">
-              {statsOrders.count}+
+              {statsOrders.count}
             </h3>
             <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Pesanan Terlayani</p>
           </div>

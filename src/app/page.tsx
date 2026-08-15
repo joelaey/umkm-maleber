@@ -813,7 +813,7 @@ export default function Home() {
             storesCount={stores.length}
             productsCount={products.length}
             driversCount={drivers.length}
-            ordersCount={orders.length}
+            ordersCount={orders.length + rides.length}
           />
         ) : selectedProductDetail ? (
           /* DEDICATED PRODUCT DETAIL PAGE VIEW */
