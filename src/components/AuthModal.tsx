@@ -335,10 +335,9 @@ export default function AuthModal({
         const data = await res.json();
         if (res.ok && data.success) {
           setOtpSentMsg(`✅ Kode OTP 6-digit berhasil dikirim via Resend ke email: ${email}`);
-        } else if (data.notice) {
-          setOtpSentMsg(data.notice);
+          setStep('otp');
         } else {
-          setOtpSentMsg(`ℹ️ Kode verifikasi OTP telah dikirimkan ke email: ${email}`);
+          setErrorMsg(data.error || 'Gagal mengirim email OTP. Silakan periksa kembali alamat email Anda.');
         }
       } else {
         // WhatsApp OTP via Wablas API
@@ -353,20 +352,15 @@ export default function AuthModal({
         });
 
         const data = await res.json();
-        if (res.ok && data.success && !data.fallbackMode) {
+        if (res.ok && data.success) {
           setOtpSentMsg(`✅ Kode OTP 6-digit berhasil dikirim ke nomor WhatsApp: ${phone}`);
-        } else if (data.notice) {
-          setOtpSentMsg(data.notice);
+          setStep('otp');
         } else {
-          setOtpSentMsg(`ℹ️ Kode verifikasi OTP telah dikirimkan ke nomor WhatsApp: ${phone}`);
+          setErrorMsg(data.error || 'Pengiriman WhatsApp gagal. Pastikan perangkat di Wablas berstatus CONNECTED (Hijau), atau pilih opsi "Verifikasi via Email".');
         }
       }
-
-      setStep('otp');
     } catch (err: any) {
-      console.warn('OTP Send Notice:', err);
-      setOtpSentMsg(`ℹ️ Kode OTP verifikasi telah dikirimkan.`);
-      setStep('otp');
+      setErrorMsg('Gagal memproses pengiriman OTP ke server. Periksa koneksi internet Anda!');
     } finally {
       setSendingOtp(false);
     }

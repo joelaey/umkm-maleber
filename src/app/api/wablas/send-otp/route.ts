@@ -118,23 +118,16 @@ _Dikirim otomatis oleh sistem UMKM Maleber_
     if (isSuccess) {
       return NextResponse.json({
         success: true,
-        message: `OTP berhasil dikirim ke WhatsApp ${normalizedPhone}`,
+        message: `OTP berhasil dikirim ke nomor WhatsApp ${normalizedPhone}`,
       });
     }
 
-    // Fallback: If device is expired or token invalid
-    console.warn(`Wablas OTP Warning: ${lastErrorMsg}. Fallback mode active.`);
+    // If device is expired or token invalid, return honest descriptive error
+    console.error(`Wablas OTP Error: ${lastErrorMsg}`);
     return NextResponse.json({
-      success: true,
-      fallbackMode: true,
-      otpCode: isProduction ? undefined : otpCode,
-      message: isProduction
-        ? `Kode OTP telah dikirimkan ke WhatsApp ${normalizedPhone}.`
-        : `[Mode Tes] Device WhatsApp Wablas tidak aktif (${lastErrorMsg}). Gunakan Kode OTP: ${otpCode}`,
-      notice: isProduction
-        ? 'Silakan periksa WhatsApp Anda.'
-        : `Device Wablas (${lastErrorMsg}). Silakan scan QR ulang di Wablas Dashboard atau gunakan kode OTP tes.`
-    });
+      success: false,
+      error: `Pengiriman WhatsApp gagal (${lastErrorMsg}). Pastikan perangkat WhatsApp di Wablas berstatus CONNECTED (Hijau), atau pilih opsi "Verifikasi via Email".`
+    }, { status: 400 });
 
   } catch (error: any) {
     console.error('Wablas OTP route error:', error);
