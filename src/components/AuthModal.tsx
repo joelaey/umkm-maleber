@@ -1132,20 +1132,6 @@ export default function AuthModal({
               </div>
             )}
 
-            {generatedOtp && (
-              <button
-                type="button"
-                onClick={() => {
-                  const chars = generatedOtp.split('');
-                  setPinDigits(chars);
-                  setInputOtp(generatedOtp);
-                }}
-                className="w-full text-center text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 hover:bg-emerald-200 dark:hover:bg-emerald-900 border border-emerald-300/40 rounded-xl py-2 cursor-pointer transition-colors shadow-xs"
-              >
-                ⚡ Isikan Otomatis Kode OTP Demo ({generatedOtp})
-              </button>
-            )}
-
             <div>
               <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block text-center mb-1">
                 Masukkan 6-Digit Kode OTP:
